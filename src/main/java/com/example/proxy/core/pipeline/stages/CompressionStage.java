@@ -1,3 +1,15 @@
+package com.example.proxy.core.pipeline.stages;
+
+import com.example.proxy.core.pipeline.PipelineManager;
 /* 
  *  Overview: Pipeline stage for compression with HTTP/1.x, HTTP/2. and WebSocket
  */
+
+public class CompressionStage implements PipelineManager {
+
+    final String type;
+
+    public CompressionStage(String type) {
+        this.type = type;
+    }
+}
