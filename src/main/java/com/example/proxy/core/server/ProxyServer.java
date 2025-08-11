@@ -1,10 +1,14 @@
 package com.example.proxy.core.server;
 import com.example.proxy.config.ProxyConfig;
-import com.example.proxy.config.ProtocolConfig;
-import com.example.proxy.core.server.handlers.ServerHandler;
 import com.example.proxy.core.pipeline.stages.AuthStage;
-import com.example.proxy.core.pipeline.stages.CompressionStage;
 import com.example.proxy.core.pipeline.stages.CachingStage;
+import com.example.proxy.core.pipeline.stages.CompressionStage;
+import com.example.proxy.exceptions.ProxyException;
+
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 /* 
  *  Overview: Entry point for accepting TCP/HTTP/WebSocket connections, initializing pipelines,
@@ -14,6 +18,8 @@ import com.example.proxy.core.pipeline.stages.CachingStage;
 public class ProxyServer {
 
     private final ProxyConfig proxyConfig;
+    //TODO: should this be immutable?
+    private ServerInitializer serverInitializer;
 
     public enum State {
         RUNNING,
@@ -21,6 +27,9 @@ public class ProxyServer {
     }
 
     private State currentState;
+    private NioEventLoopGroup bossGroup;
+    private NioEventLoopGroup workerGroup;
+    private ChannelFuture serverChannelFuture;
 
     public ProxyServer(ProxyConfig proxyConfig) {
         this.proxyConfig = proxyConfig;
@@ -31,24 +40,52 @@ public class ProxyServer {
         return this.currentState == State.RUNNING;
     }
 
-    public void handler() {
-        if (proxyConfig.getProtocol().equals("HTTP1")) {   
+    public void start() throws ProxyException {
+        if (this.serverInitializer == null) {
+            throw new ProxyException("ServerInitializer not initialized. Call initialize() first.");
+        }
+        
+        if (this.bossGroup == null || this.workerGroup == null) {
+            throw new ProxyException("Event loop groups not initialized. Call initialize() first.");
+        }
+
+        try {
+            ServerBootstrap bootstrap = new ServerBootstrap();
+            this.serverChannelFuture = bootstrap.group(this.bossGroup, this.workerGroup)
+                .channel(NioServerSocketChannel.class)
+                .childHandler(this.serverInitializer)
+                .bind(proxyConfig.getPort())
+                .sync();
+
+            this.currentState = State.RUNNING;
+            System.out.println("Proxy server started on port " + proxyConfig.getPort() 
+                             + " with protocol: " + proxyConfig.getProtocol());
+                             
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            cleanup();
+            throw new ProxyException("Server start interrupted", e);
+        } catch (Exception e) {
+            cleanup();
+            throw new ProxyException("Failed to start proxy server on port " + proxyConfig.getPort(), e);
         }
     }
 
-    public void start() {
-
+    private void cleanup() {
+        throw new UnsupportedOperationException("Unimplemented method 'cleanup'");
     }
 
     public void stop() {
-
     }
 
     public void initialize(ServerInitializer servInt) {
-
+        this.serverInitializer = servInt;
+        this.bossGroup = new NioEventLoopGroup(1); // Accept connections
+        this.workerGroup = new NioEventLoopGroup(); // Handle I/O
+        servInt.addConfig(this.proxyConfig);
     }
 
-    public boolean forward(String data, String type, AuthStage auth, CompressionStage comp, CachingStage cache) {
+    public void sync() {
 
     }
 }
