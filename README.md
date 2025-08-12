@@ -1,4 +1,4 @@
-# AHC Proxy
+# AHC Proxy - Work in Progress
 
 HTTP/HTTPS proxy server built with Netty featuring modular pipeline architecture, multi-protocol support (HTTP/1.1, HTTP/2, WebSocket), and pluggable processing stages for auth, caching, and compression.
 
