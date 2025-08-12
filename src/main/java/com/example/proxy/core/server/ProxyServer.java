@@ -72,20 +72,64 @@ public class ProxyServer {
     }
 
     private void cleanup() {
-        throw new UnsupportedOperationException("Unimplemented method 'cleanup'");
+        if (this.bossGroup != null && !this.bossGroup.isShutdown()) {
+            this.bossGroup.shutdownGracefully();
+        }
+        if (this.workerGroup != null && !this.workerGroup.isShutdown()) {
+            this.workerGroup.shutdownGracefully();
+        }
+        this.currentState = State.STOPPED;
     }
 
     public void stop() {
+        if (this.currentState == State.STOPPED) {
+            System.out.println("Proxy server is already stopped");
+            return;
+        }
+
+        try {
+            System.out.println("Shutting down proxy server...");
+            
+            if (this.serverChannelFuture != null && this.serverChannelFuture.channel().isOpen()) {
+                this.serverChannelFuture.channel().close().sync();
+            }
+            
+            if (this.bossGroup != null) {
+                this.bossGroup.shutdownGracefully().sync();
+            }
+            
+            if (this.workerGroup != null) {
+                this.workerGroup.shutdownGracefully().sync();
+            }
+            
+            this.currentState = State.STOPPED;
+            System.out.println("Proxy server stopped successfully");
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Shutdown interrupted: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error during shutdown: " + e.getMessage());
+        } finally {
+            this.currentState = State.STOPPED;
+        }
     }
 
     public void initialize(ServerInitializer servInt) {
         this.serverInitializer = servInt;
-        this.bossGroup = new NioEventLoopGroup(1); // Accept connections
-        this.workerGroup = new NioEventLoopGroup(); // Handle I/O
+        this.bossGroup = new NioEventLoopGroup(1);
+        this.workerGroup = new NioEventLoopGroup();
         servInt.addConfig(this.proxyConfig);
     }
 
-    public void sync() {
-
+    public void sync() throws ProxyException {
+        try {
+            if (this.serverChannelFuture != null) {
+                this.serverChannelFuture.channel().closeFuture().await();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ProxyException("Server sync interrupted", e);
+        }
     }
 }

@@ -6,6 +6,7 @@ import com.example.proxy.core.server.handlers.Http1ServerHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 
 /* 
@@ -58,6 +59,7 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
 
     private void configureHttp1Pipeline(ChannelPipeline pipeline) {
         pipeline.addLast("http-codec", new HttpServerCodec());
+        pipeline.addLast("http-aggregator", new HttpObjectAggregator(65536));
         pipeline.addLast("http1-handler", new Http1ServerHandler());
         
     }

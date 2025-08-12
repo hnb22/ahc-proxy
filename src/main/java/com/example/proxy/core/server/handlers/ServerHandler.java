@@ -4,6 +4,7 @@ import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.core.backend.BackendTarget;
 
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.FullHttpResponse;
 
 /* 
  *  Overview: [INTERFACE] Defines the contract for server request handlers
@@ -18,7 +19,7 @@ public interface ServerHandler {
 
     boolean forwardToBackend(ChannelHandlerContext ctx, ForwardRequest request, BackendTarget target);
 
-    Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse, ForwardRequest originalRequest);
+    Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse);
 
     void sendResponseToClient(ChannelHandlerContext ctx, Object response, ForwardRequest originalRequest);
 
@@ -27,4 +28,5 @@ public interface ServerHandler {
     void cleanup(ChannelHandlerContext ctx);
 
     String getProtocolType();
+
 }
