@@ -3,30 +3,24 @@ package com.example.proxy.core.server.handlers;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.example.proxy.core.backend.BackendTarget;
+import com.example.proxy.core.client.BackendResponseCallback;
+import com.example.proxy.core.client.HttpBackendClient;
+import com.example.proxy.core.client.custom.BackendCallbackHttp1;
 import com.example.proxy.core.server.ForwardHttp1;
 import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.utils.HttpUtil;
 
-import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInitializer;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.CharsetUtil;
@@ -35,39 +29,16 @@ import io.netty.util.CharsetUtil;
  *  Overview: Handles HTTP/1.x requests including reading body, passing to routing layer
  */
 
-public class Http1ServerHandler extends SimpleChannelInboundHandler implements ServerHandler, ChannelHandler {
-
-    private String connectionId;
-    private static final Map<String, Object> activeConnections = new HashMap<>();
-
-    @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-        ctx.flush();
+public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> implements ServerHandler {
+    
+    private static final Logger logger = LoggerFactory.getLogger(Http1ServerHandler.class);
+        
+    public Http1ServerHandler() {
     }
-
+    
     @Override
-    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-        String id = ctx.channel().id().asLongText();
-        this.connectionId = String.valueOf(id.hashCode());
-        activeConnections.put(connectionId, new Object());
-    }
-
-    @Override
-    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-        cleanup(ctx);
-        if (connectionId != null) {
-            activeConnections.remove(connectionId);
-        }
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
-
-        if (ctx.channel().isActive()) {
-            handleError(ctx, cause, null);
-        }
-        ctx.close();
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        super.channelActive(ctx);
     }
 
     @Override
@@ -89,10 +60,34 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
 
             String clientAddress = ctx.channel().remoteAddress().toString();
             
-            return new ForwardHttp1(body, method, uri, headers, clientAddress);
+            ForwardHttp1 forwardRequest = new ForwardHttp1(body, method, uri, headers, clientAddress);
+            
+            String acceptEncoding = headers.get("accept-encoding");
+            if (acceptEncoding != null) {
+                if (acceptEncoding.contains("gzip")) {
+                    forwardRequest.withCompression("gzip");
+                } else if (acceptEncoding.contains("deflate")) {
+                    forwardRequest.withCompression("deflate");
+                } else if (acceptEncoding.contains("br")) {
+                    forwardRequest.withCompression("brotli");
+                }
+            }
+            
+            String authorization = headers.get("authorization");
+            if (authorization != null) {
+                if (authorization.startsWith("Bearer ")) {
+                    forwardRequest.withAuth("bearer");
+                } else if (authorization.startsWith("Basic ")) {
+                    forwardRequest.withAuth("basic");
+                } else if (authorization.startsWith("OAuth ")) {
+                    forwardRequest.withAuth("oauth");
+                }
+            }
+            
+            return forwardRequest;
 
         } catch (Exception e) {
-            System.err.println("Error parsing HTTP request: " + e.getMessage());
+            logger.error("Error parsing HTTP request: {}", e.getMessage());
             return null;
         }
     }
@@ -101,7 +96,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
     public BackendTarget routeToBackend(ForwardRequest request) {
         try {
             if (!(request instanceof ForwardHttp1)) {
-                System.err.println("Invalid request type for HTTP/1.1 handler");
+                logger.error("Invalid request type for HTTP/1.1 handler");
                 return null;
             }
             
@@ -120,11 +115,19 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
                 metadata.put("protocol", "http1-soap");
             } else {
                 metadata.put("protocol", "http1-no-soap");
-            }      
+            }   
+            
+            if (rqstHttp.hasAuth()) {
+                metadata.put("auth", rqstHttp.getAuthStage().getAlg());
+            }
+            if (rqstHttp.hasCompression()) {
+                metadata.put("comp", rqstHttp.getCompressionStage().getAlg());
+            }
+
             return new BackendTarget(host, port, path, metadata);
 
         } catch (Exception e) {
-            System.err.println("Error routing request: " + e.getMessage());
+            logger.error("Error routing request: {}", e.getMessage());
             return null;
         }
     }
@@ -133,98 +136,55 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
     public boolean forwardToBackend(ChannelHandlerContext ctx, ForwardRequest request, BackendTarget target) {
         try {
             if (!(request instanceof ForwardHttp1)) {
-                System.err.println("Invalid request type for HTTP1");
+                logger.error("Invalid request type for HTTP1");
                 return false;
             }
 
             ForwardHttp1 httpRequest = (ForwardHttp1) request;
             String protocol = target.getMetadata().get("protocol");
+            String auth = target.getMetadata().get("auth");
+            String comp = target.getMetadata().get("comp");
 
-            //TODO: encapsulate Handler for incoming data to delegate for additional functionality
-            if ("http1-soap".equals(protocol) || "http1-no-soap".equals(protocol)) {
-                System.out.println("Attempting to connect to: " + target.getHost() + ":" + target.getPort());
+            if ("http1-no-soap".equals(protocol)) {
+                HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
+                                                                        auth != null ? auth : "none",
+                                                                        comp != null ? comp : "none");
                 
-                Bootstrap client = new Bootstrap();
-                client.group(ctx.channel().eventLoop())
-                    .channel(NioSocketChannel.class)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(new HttpClientCodec());
-                            ch.pipeline().addLast(new HttpObjectAggregator(65536));
-                            ch.pipeline().addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
-                                @Override
-                                protected void channelRead0(ChannelHandlerContext backendCtx, FullHttpResponse response) throws Exception {
-                                    Object processedResponse = Http1ServerHandler.this.processBackendResponse(ctx, response);
-                                    Http1ServerHandler.this.sendResponseToClient(ctx, processedResponse, httpRequest);
-                                    backendCtx.close();
-                                }
-                                
-                                @Override
-                                public void exceptionCaught(ChannelHandlerContext backendCtx, Throwable cause) throws Exception {
-                                    System.err.println("Backend connection error: " + cause.getMessage());
-                                    Http1ServerHandler.this.handleError(ctx, cause, httpRequest);
-                                    backendCtx.close();
-                                }
-                            });
+                BackendCallbackHttp1.ResponseProcessor responseProcessor = new BackendCallbackHttp1.ResponseProcessor() {
+                    @Override
+                    public Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse) {
+                        return Http1ServerHandler.this.processBackendResponse(ctx, backendResponse);
+                    }
+                    
+                    @Override
+                    public void sendResponseToClient(ChannelHandlerContext ctx, Object response, ForwardRequest originalRequest) {
+                        Http1ServerHandler.this.sendResponseToClient(ctx, response, originalRequest);
+                    }
+                    
+                    @Override
+                    public void handleError(ChannelHandlerContext ctx, Throwable cause, ForwardRequest request) {
+                        Http1ServerHandler.this.handleError(ctx, cause, request);
+                    }
+                };
+
+                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor);
+                
+                backendClient.forwardRequest(httpRequest, target, callback)
+                    .whenComplete((success, throwable) -> {
+                        if (throwable != null) {
+                            handleError(ctx, throwable, httpRequest);
+                        } else if (!success) {
+                            handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
                         }
                     });
                 
-                try {
-                    System.out.println("Connecting to: " + target.getHost() + ":" + target.getPort());
-                    ChannelFuture connectFuture = client.connect(target.getHost(), target.getPort());
-                    
-                    // Use addListener instead of await() to avoid blocking issues
-                    connectFuture.addListener((ChannelFutureListener) future -> {
-                        if (future.isSuccess()) {
-                            Channel clientChannel = future.channel();
-                            System.out.println("Successfully connected to backend: " + target.getHost() + ":" + target.getPort());
-                            System.out.println("Channel active: " + clientChannel.isActive());
-                            
-                            try {
-                                FullHttpRequest backendRequest = new DefaultFullHttpRequest(
-                                    HttpVersion.HTTP_1_1,
-                                    HttpMethod.valueOf(httpRequest.getMethod()),
-                                    target.getPath(),
-                                    Unpooled.wrappedBuffer(httpRequest.getData().getBytes())
-                                );
-                                
-                                httpRequest.getHeaders().forEach((key, value) -> 
-                                    backendRequest.headers().set(key, value)
-                                );
-                                
-                                backendRequest.headers().set(HttpHeaderNames.CONTENT_LENGTH, 
-                                    backendRequest.content().readableBytes());
-                                
-                                clientChannel.writeAndFlush(backendRequest);
-                                System.out.println("Request forwarded to backend");
-                                
-                            } catch (Exception e) {
-                                System.err.println("Error sending request to backend: " + e.getMessage());
-                                Http1ServerHandler.this.handleError(ctx, e, httpRequest);
-                            }
-                        } else {
-                            System.err.println("Connection failed to " + target.getHost() + ":" + target.getPort());
-                            if (future.cause() != null) {
-                                System.err.println("Failure reason: " + future.cause().getMessage());
-                                future.cause().printStackTrace();
-                            }
-                            Http1ServerHandler.this.handleError(ctx, new Exception("Connection failed"), httpRequest);
-                        }
-                    });
-                    
-                    return true;
-                    
-                } catch (Exception e) {
-                    System.err.println("Error setting up connection to " + target.getHost() + ":" + target.getPort() + " - " + e.getMessage());
-                    return false;
-                }
+                return true;
             }
 
             return false;
 
         } catch (Exception e) {
-            System.err.println("Error forwarding to backend: " + e.getMessage());
+            logger.error("Error forwarding to backend: {}", e.getMessage());
             handleError(ctx, e, request);
             return false;
         }
@@ -236,14 +196,14 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
             if (ctx.channel().isActive() && response instanceof FullHttpResponse) {
                 ctx.writeAndFlush(response).addListener(future -> {
                     if (future.isSuccess()) {
-                        System.out.println("HTTP/1.1 response sent to client");
+                        logger.info("HTTP/1.1 response sent to client");
                     } else {
-                        System.err.println("Failed to send response: " + future.cause().getMessage());
+                        logger.error("Failed to send response: {}", future.cause().getMessage());
                     }
                 });
             }
         } catch (Exception e) {
-            System.err.println("Error sending HTTP/1.1 response: " + e.getMessage());
+            logger.error("Error sending HTTP/1.1 response: {}", e.getMessage());
         }
     }
 
@@ -266,17 +226,13 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
             ctx.writeAndFlush(errorResponse).addListener(ChannelFutureListener.CLOSE);
             
         } catch (Exception e) {
-            System.err.println("Error sending HTTP/1.1 error response: " + e.getMessage());
+            logger.error("Error sending HTTP/1.1 error response: {}", e.getMessage());
             ctx.close();
         }    
     }
 
     @Override
-    public void cleanup(ChannelHandlerContext ctx) {
-        if (connectionId != null) {
-            activeConnections.remove(connectionId);
-            System.out.println("Cleaned up HTTP/1.1 connection: " + connectionId);
-        }    
+    public void cleanup(ChannelHandlerContext ctx) {   
     }
 
     @Override
@@ -294,19 +250,18 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler implements S
         
         // Add proxy headers
         response.headers().set("X-Proxy-Server", "ahc-proxy-http1");
-        response.headers().set("X-Request-ID", connectionId);
         
         // Remove hop-by-hop headers
         response.headers().remove(HttpHeaderNames.CONNECTION);
         response.headers().remove("Proxy-Connection");
         
-        System.out.println("Processed HTTP/1.1 response");
+        logger.info("Processed HTTP/1.1 response");
         
         return response;
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) throws Exception {
         try {
             ForwardRequest request = parseIncomingMessage(ctx, msg);
             if (request != null) {

@@ -1,8 +1,9 @@
 package com.example.proxy.core.server;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.example.proxy.config.ProxyConfig;
-import com.example.proxy.core.pipeline.stages.AuthStage;
-import com.example.proxy.core.pipeline.stages.CachingStage;
-import com.example.proxy.core.pipeline.stages.CompressionStage;
 import com.example.proxy.exceptions.ProxyException;
 
 import io.netty.bootstrap.ServerBootstrap;
@@ -17,6 +18,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 public class ProxyServer {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProxyServer.class);
+    
     private final ProxyConfig proxyConfig;
     //TODO: should this be immutable?
     private ServerInitializer serverInitializer;
@@ -58,8 +61,8 @@ public class ProxyServer {
                 .sync();
 
             this.currentState = State.RUNNING;
-            System.out.println("Proxy server started on port " + proxyConfig.getPort() 
-                             + " with protocol: " + proxyConfig.getProtocol());
+            logger.info("Proxy server started on port {} with protocol: {}", 
+                       proxyConfig.getPort(), proxyConfig.getProtocol());
                              
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -83,12 +86,12 @@ public class ProxyServer {
 
     public void stop() {
         if (this.currentState == State.STOPPED) {
-            System.out.println("Proxy server is already stopped");
+            logger.info("Proxy server is already stopped");
             return;
         }
 
         try {
-            System.out.println("Shutting down proxy server...");
+            logger.info("Shutting down proxy server...");
             
             if (this.serverChannelFuture != null && this.serverChannelFuture.channel().isOpen()) {
                 this.serverChannelFuture.channel().close().sync();
@@ -103,13 +106,13 @@ public class ProxyServer {
             }
             
             this.currentState = State.STOPPED;
-            System.out.println("Proxy server stopped successfully");
+            logger.info("Proxy server stopped successfully");
             
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Shutdown interrupted: " + e.getMessage());
+            logger.error("Shutdown interrupted: {}", e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error during shutdown: " + e.getMessage());
+            logger.error("Error during shutdown: {}", e.getMessage());
         } finally {
             this.currentState = State.STOPPED;
         }

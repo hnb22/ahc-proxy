@@ -1,12 +1,17 @@
 package com.example.proxy;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.example.proxy.config.ProtocolConfig;
 import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
 import com.example.proxy.exceptions.ProxyException;
 
-public class ApplicationHttp1 {
+public class TestHttp1 {
 
+    private static final Logger logger = LoggerFactory.getLogger(TestHttp1.class);
+    
     static final int LOCAL_PORT = Integer.parseInt(System.getProperty("localPort", "8000"));
 
     public static void main(String[] args) throws ProxyException {
@@ -16,15 +21,15 @@ public class ApplicationHttp1 {
             proxy.initialize(new ServerInitializer(LOCAL_PORT));
             proxy.start();
             
-            System.out.println("Proxy server is running. Press Ctrl+C to stop.");
+            logger.info("Proxy server is running. Press Ctrl+C to stop.");
             
             proxy.sync();
             
         } catch (ProxyException e) {
-            System.err.println("Failed to start proxy server: " + e.getMessage());
+            logger.error("Failed to start proxy server: {}", e.getMessage());
             proxy.stop();
         } finally {
-            System.out.println("Proxy server is shuting down");
+            logger.info("Proxy server is shutting down");
             proxy.stop();
         }
     }

@@ -1,10 +1,9 @@
 package com.example.proxy.core.server.handlers;
 
-import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.core.backend.BackendTarget;
+import com.example.proxy.core.server.ForwardRequest;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.FullHttpResponse;
 
 /* 
  *  Overview: [INTERFACE] Defines the contract for server request handlers

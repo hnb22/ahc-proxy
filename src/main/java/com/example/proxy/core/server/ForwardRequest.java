@@ -1,24 +1,31 @@
 package com.example.proxy.core.server;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import com.example.proxy.core.pipeline.StagesManager;
 import com.example.proxy.core.pipeline.stages.AuthStage;
-import com.example.proxy.core.pipeline.stages.CachingStage;
 import com.example.proxy.core.pipeline.stages.CompressionStage;
 
 /**
  * Builder pattern for creating forward requests with optional pipeline stages.
  * Provides a fluent, readable API for configuring which stages to apply.
+ * 
+ * IMPROVED OOP Design:
+ * - Composition: Uses List<StagesManager> for multiple stages
+ * - Builder Pattern: Fluent method chaining
+ * - Encapsulation: Private fields with controlled access
+ * - Polymorphism: Different stage implementations through common interface
  */
-
 public class ForwardRequest {
     private final String data;
     private final String type;
-    private AuthStage authStage;
-    private CompressionStage compressionStage;
-    private CachingStage cachingStage;
+    private final List<StagesManager> stages;
 
     protected ForwardRequest(String data, String type) {
         this.data = data;
         this.type = type;
+        this.stages = new ArrayList<>();
     }
 
     public static ForwardRequest of(String data, String type) {
@@ -26,42 +33,40 @@ public class ForwardRequest {
     }
 
     public ForwardRequest withAuth(String authType) {
-        this.authStage = new AuthStage(authType);
-        return this;
-    }
-
-    public ForwardRequest withAuth(AuthStage authStage) {
-        this.authStage = authStage;
+        this.stages.add(new AuthStage(authType));
         return this;
     }
 
     public ForwardRequest withCompression(String compressionType) {
-        this.compressionStage = new CompressionStage(compressionType);
-        return this;
-    }
-
-    public ForwardRequest withCompression(CompressionStage compressionStage) {
-        this.compressionStage = compressionStage;
-        return this;
-    }
-
-    public ForwardRequest withCaching() {
-        this.cachingStage = new CachingStage();
-        return this;
-    }
-
-    public ForwardRequest withCaching(CachingStage cachingStage) {
-        this.cachingStage = cachingStage;
+        this.stages.add(new CompressionStage(compressionType));
         return this;
     }
 
     public String getData() { return data; }
     public String getType() { return type; }
-    public AuthStage getAuthStage() { return authStage; }
-    public CompressionStage getCompressionStage() { return compressionStage; }
-    public CachingStage getCachingStage() { return cachingStage; }
+    public List<StagesManager> getStages() { return new ArrayList<>(stages); }  // Defensive copy
 
-    public boolean hasAuth() { return authStage != null; }
-    public boolean hasCompression() { return compressionStage != null; }
-    public boolean hasCaching() { return cachingStage != null; }
+    public boolean hasStages() { return !stages.isEmpty(); }
+    
+    public boolean hasAuth() { 
+        return stages.stream().anyMatch(stage -> stage instanceof AuthStage); 
+    }
+    
+    public boolean hasCompression() { 
+        return stages.stream().anyMatch(stage -> stage instanceof CompressionStage); 
+    }
+    
+    public AuthStage getAuthStage() {
+        return (AuthStage) stages.stream()
+            .filter(stage -> stage instanceof AuthStage)
+            .findFirst()
+            .orElse(null);
+    }
+    
+    public CompressionStage getCompressionStage() {
+        return (CompressionStage) stages.stream()
+            .filter(stage -> stage instanceof CompressionStage)
+            .findFirst()
+            .orElse(null);
+    }
 }
