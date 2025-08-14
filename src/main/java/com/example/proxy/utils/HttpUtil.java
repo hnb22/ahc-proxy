@@ -29,7 +29,7 @@ public final class HttpUtil {
         }
     }
 
-    public static int extractPortFromURI(String uri) {
+    public static int getPortFromURI(String uri) {
         try {    
             URI parsedUri = new URI(uri);
             int port = parsedUri.getPort();

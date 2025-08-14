@@ -13,6 +13,8 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
@@ -47,11 +49,11 @@ public class HttpBackendClient {
         this.compression = compression;
     }
     
-    public CompletableFuture<Boolean> forwardRequest(ForwardHttp1 request, BackendTarget target, BackendResponseCallback callback) {
+    public CompletableFuture<Boolean> forwardRequestHTTP(ForwardHttp1 request, BackendTarget target, BackendResponseCallback callback) {
         CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
         
         try {
-            Bootstrap client = createBootstrap(callback);
+            Bootstrap client = createBootstrapHttp(callback);
             
             logger.info("Connecting to: {}:{}", target.getHost(), target.getPort());
             ChannelFuture connectFuture = client.connect(target.getHost(), target.getPort());
@@ -73,7 +75,7 @@ public class HttpBackendClient {
         return resultFuture;
     }
     
-    private Bootstrap createBootstrap(BackendResponseCallback callback) {
+    private Bootstrap createBootstrapHttp(BackendResponseCallback callback) {
         Bootstrap client = new Bootstrap();
         client.group(eventLoopGroup)
             .channel(NioSocketChannel.class)
@@ -215,6 +217,98 @@ public class HttpBackendClient {
         }
         
         request.headers().set("X-Compression-Applied", "true");
+    }
+
+    public CompletableFuture<Boolean> forwardRequestHTTPS(ChannelHandlerContext ctx, ForwardHttp1 httpRequest, BackendTarget target,
+            BackendResponseCallback callback) {
+
+        Channel clientChannel = ctx.channel();
+
+        // Remove HTTP handlers
+        if (clientChannel.pipeline().get("http-codec") != null) {
+            clientChannel.pipeline().remove("http-codec");
+        }
+        if (clientChannel.pipeline().get("http-aggregator") != null) {
+            clientChannel.pipeline().remove("http-aggregator");
+        }
+        if (clientChannel.pipeline().get("http1-handler") != null) {
+            clientChannel.pipeline().remove("http1-handler");
+        }
+
+        CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
+
+        // Buffer client data until backend is ready
+        final java.util.Queue<Object> buffer = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        ChannelInboundHandlerAdapter bufferHandler = new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelRead(ChannelHandlerContext ctx, Object msg) {
+                buffer.add(msg);
+            }
+        };
+        clientChannel.pipeline().addLast("buffer-handler", bufferHandler);
+
+        try {
+            Bootstrap backendClient = createBootstrapHttps(callback);
+            logger.info("Connecting to: {}:{}", target.getHost(), target.getPort());
+            ChannelFuture connectFuture = backendClient.connect(target.getHost(), target.getPort());
+
+            connectFuture.addListener((ChannelFutureListener) future -> {
+                if (future.isSuccess()) {
+                    Channel backendChannel = future.channel();
+                    // Flush buffered client data to backend
+                    while (!buffer.isEmpty()) {
+                        Object msg = buffer.poll();
+                        if (msg != null) {
+                            backendChannel.writeAndFlush(msg);
+                        }
+                    }
+                    clientChannel.pipeline().remove("buffer-handler");
+                    clientChannel.pipeline().addLast(new RelayHandler(backendChannel));
+                    backendChannel.pipeline().addLast(new RelayHandler(clientChannel));
+                    resultFuture.complete(true);
+                } else {
+                    handleConnectionFailure(target, future.cause(), callback, resultFuture);
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Error setting up connection to {}:{} - {}", target.getHost(), target.getPort(), e.getMessage());
+            callback.onError(e);
+            resultFuture.complete(false);
+        }
+        return resultFuture;
+    }
+
+    public static class RelayHandler extends ChannelInboundHandlerAdapter {
+
+        private final Channel relayChannel;
+        public RelayHandler(Channel relayChannel) { this.relayChannel = relayChannel; }
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (relayChannel.isActive()) {
+                relayChannel.writeAndFlush(msg);
+            }
+        }
+        @Override
+        public void channelInactive(io.netty.channel.ChannelHandlerContext ctx) {
+            if (relayChannel.isActive()) {
+                relayChannel.close();
+            }
+        }
+        @Override
+        public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
+            ctx.close();
+        }
+    }
+
+    private Bootstrap createBootstrapHttps(BackendResponseCallback callback) {
+        Bootstrap client = new Bootstrap();
+        client.group(eventLoopGroup)
+            .channel(NioSocketChannel.class)
+            .handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                protected void initChannel(SocketChannel ch) throws Exception {}
+            });
+        return client;
     }
     
 }

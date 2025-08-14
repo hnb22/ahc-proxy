@@ -2,7 +2,7 @@
 
 # Initialize success counter
 success_count=0
-total_tests=3
+total_tests=4
 
 echo "Starting proxy functionality tests..."
 echo "================================="
@@ -34,6 +34,15 @@ if curl -x localhost:8000 -X POST -H "Content-Type: application/json" -d '{"name
     ((success_count++))
 else
     echo "❌ POST compression test failed"
+fi
+echo
+
+echo "Test 4: HTTPS tunneling"
+if curl curl -x localhost:8000 "https://echo.free.beeceptor.com/sample-request?author=beeceptor"; then
+    echo "✅ Tunnel successfuly worked. Test passed"
+    ((success_count++))
+else
+    echo "❌ Tunnel test failed"
 fi
 echo
 

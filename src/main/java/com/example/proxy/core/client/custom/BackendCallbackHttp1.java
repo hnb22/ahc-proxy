@@ -34,6 +34,10 @@ public class BackendCallbackHttp1 implements BackendResponseCallback {
         System.err.println("BackendCallbackHttp1: Backend error: " + cause.getMessage());
         responseProcessor.handleError(clientCtx, cause, originalRequest);
     }
+
+    public ChannelHandlerContext getClientChannel() {
+        return clientCtx;
+    }
     
     /**
      * Interface to delegate response processing back to the handler

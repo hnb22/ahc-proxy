@@ -104,10 +104,21 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             String uri = rqstHttp.getURI();
             Map<String, String> headers = rqstHttp.getHeaders();
 
-            String host = HttpUtil.getHostFromURI(uri);
-            String path = HttpUtil.getPathFromURI(uri);
-            
-            int port = HttpUtil.extractPortFromURI(uri);
+            String host;
+            int port;
+            String path = "";
+            //HTTPS tunneling
+            if ("CONNECT".equals(rqstHttp.getMethod())) {
+                //TODO: add helper method in HttpUtil
+                String[] both = uri.split(":");
+                host = both[0];
+                port = Integer.parseInt(both[1]);
+            //Regular HTTP
+            } else {
+                host = HttpUtil.getHostFromURI(uri);
+                path = HttpUtil.getPathFromURI(uri);
+                port = HttpUtil.getPortFromURI(uri);
+            }
 
             Map<String, String> metadata = new HashMap<>();
             metadata.put("routingRule", "path-based");
@@ -169,15 +180,33 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
 
                 BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor);
                 
-                backendClient.forwardRequest(httpRequest, target, callback)
-                    .whenComplete((success, throwable) -> {
-                        if (throwable != null) {
-                            handleError(ctx, throwable, httpRequest);
-                        } else if (!success) {
-                            handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
-                        }
-                    });
-                
+                //HTTPS Tunneling
+                if ("CONNECT".equals(httpRequest.getMethod())) {
+                    FullHttpResponse response = new DefaultFullHttpResponse(
+                        HttpVersion.HTTP_1_1,
+                        new HttpResponseStatus(200, "Connection Established")
+                    );
+                    ctx.writeAndFlush(response);
+                    
+                    backendClient.forwardRequestHTTPS(ctx, httpRequest, target, callback)
+                        .whenComplete((success, throwable) -> {
+                            if (throwable != null) {
+                                handleError(ctx, throwable, httpRequest);
+                            } else if (!success) {
+                                handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
+                            }
+                        });
+
+                } else {
+                    backendClient.forwardRequestHTTP(httpRequest, target, callback)
+                        .whenComplete((success, throwable) -> {
+                            if (throwable != null) {
+                                handleError(ctx, throwable, httpRequest);
+                            } else if (!success) {
+                                handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
+                            }
+                        });
+                }              
                 return true;
             }
 
