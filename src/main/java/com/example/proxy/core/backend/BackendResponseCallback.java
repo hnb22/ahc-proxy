@@ -1,4 +1,4 @@
-package com.example.proxy.core.client;
+package com.example.proxy.core.backend;
 
 /**
  * Callback interface for handling backend responses and errors

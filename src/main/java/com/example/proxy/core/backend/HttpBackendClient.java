@@ -1,11 +1,10 @@
-package com.example.proxy.core.client;
+package com.example.proxy.core.backend;
 
 import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.example.proxy.core.backend.BackendTarget;
 import com.example.proxy.core.server.ForwardHttp1;
 
 import io.netty.bootstrap.Bootstrap;

@@ -1,6 +1,6 @@
-package com.example.proxy.core.client.custom;
+package com.example.proxy.core.backend.custom;
 
-import com.example.proxy.core.client.BackendResponseCallback;
+import com.example.proxy.core.backend.BackendResponseCallback;
 import com.example.proxy.core.server.ForwardRequest;
 
 import io.netty.channel.ChannelHandlerContext;

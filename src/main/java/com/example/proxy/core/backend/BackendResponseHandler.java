@@ -1,4 +1,4 @@
-package com.example.proxy.core.client;
+package com.example.proxy.core.backend;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;

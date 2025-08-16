@@ -6,10 +6,10 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.proxy.core.backend.BackendResponseCallback;
 import com.example.proxy.core.backend.BackendTarget;
-import com.example.proxy.core.client.BackendResponseCallback;
-import com.example.proxy.core.client.HttpBackendClient;
-import com.example.proxy.core.client.custom.BackendCallbackHttp1;
+import com.example.proxy.core.backend.HttpBackendClient;
+import com.example.proxy.core.backend.custom.BackendCallbackHttp1;
 import com.example.proxy.core.server.ForwardHttp1;
 import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.utils.HttpUtil;
