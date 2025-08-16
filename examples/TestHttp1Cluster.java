@@ -8,14 +8,14 @@ import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
 import com.example.proxy.exceptions.ProxyException;
 
-public class TestHttp1 {
+public class TestHttp1Cluster {
 
-    private static final Logger logger = LoggerFactory.getLogger(TestHttp1.class);
+    private static final Logger logger = LoggerFactory.getLogger(TestHttp1Cluster.class);
     
     static final int LOCAL_PORT = Integer.parseInt(System.getProperty("localPort", "8000"));
 
     public static void main(String[] args) throws ProxyException {
-        ProxyServer proxy = new ProxyServer(new ProtocolConfig("HTTP1", LOCAL_PORT, false));
+        ProxyServer proxy = new ProxyServer(new ProtocolConfig("HTTP1", LOCAL_PORT, true));
 
         try {
             proxy.initialize(new ServerInitializer(LOCAL_PORT));

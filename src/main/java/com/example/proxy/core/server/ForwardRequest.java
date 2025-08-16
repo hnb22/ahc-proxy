@@ -7,6 +7,8 @@ import com.example.proxy.core.pipeline.StagesManager;
 import com.example.proxy.core.pipeline.stages.AuthStage;
 import com.example.proxy.core.pipeline.stages.CompressionStage;
 
+import io.netty.buffer.ByteBuf;
+
 /**
  * Builder pattern for creating forward requests with optional pipeline stages.
  * Provides a fluent, readable API for configuring which stages to apply.
@@ -18,17 +20,17 @@ import com.example.proxy.core.pipeline.stages.CompressionStage;
  * - Polymorphism: Different stage implementations through common interface
  */
 public class ForwardRequest {
-    private final String data;
+    private final ByteBuf data;
     private final String type;
     private final List<StagesManager> stages;
 
-    protected ForwardRequest(String data, String type) {
+    protected ForwardRequest(ByteBuf data, String type) {
         this.data = data;
         this.type = type;
         this.stages = new ArrayList<>();
     }
 
-    public static ForwardRequest of(String data, String type) {
+    public static ForwardRequest of(ByteBuf data, String type) {
         return new ForwardRequest(data, type);
     }
 
@@ -42,7 +44,7 @@ public class ForwardRequest {
         return this;
     }
 
-    public String getData() { return data; }
+    public ByteBuf getData() { return data; }
     public String getType() { return type; }
     public List<StagesManager> getStages() { return new ArrayList<>(stages); }  // Defensive copy
 

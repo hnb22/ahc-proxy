@@ -15,13 +15,15 @@ public class ProxyConfig {
     protected boolean sslEnabled;
     protected int maxConnections;
     protected int timeoutMs;
+    protected boolean isCluster;
     
-    public ProxyConfig(String protocol, int port) {
+    public ProxyConfig(String protocol, int port, boolean isCluster) {
         this.protocol = protocol;
         this.port = port;
         this.sslEnabled = false;
         this.maxConnections = 1000;
         this.timeoutMs = 30000;
+        this.isCluster = isCluster;
     }
     
     public String getProtocol() {
@@ -50,5 +52,9 @@ public class ProxyConfig {
     
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
+    }
+
+    public boolean isCluster() {
+        return isCluster;
     }
 }

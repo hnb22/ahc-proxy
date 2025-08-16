@@ -119,6 +119,8 @@ public class HttpBackendClient {
                     resultFuture.complete(false);
                 }
             });
+
+            logger.info("Successfully send data back to client.");
             
         } catch (Exception e) {
             logger.error("Error sending request to backend: {}", e.getMessage());
@@ -140,7 +142,7 @@ public class HttpBackendClient {
             HttpVersion.HTTP_1_1,
             HttpMethod.valueOf(request.getMethod()),
             target.getPath(),
-            Unpooled.wrappedBuffer(request.getData().getBytes())
+            Unpooled.wrappedBuffer(request.getData())
         );
         
         request.getHeaders().forEach((key, value) -> 

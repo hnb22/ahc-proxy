@@ -14,6 +14,7 @@ import com.example.proxy.core.server.ForwardHttp1;
 import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.utils.HttpUtil;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -23,7 +24,6 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.util.CharsetUtil;
 
 /* 
  *  Overview: Handles HTTP/1.x requests including reading body, passing to routing layer
@@ -51,7 +51,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
         try {
             String method = rqst.method().name();
             String uri = rqst.uri();
-            String body = rqst.content().toString(CharsetUtil.UTF_8);
+            ByteBuf body = rqst.content();
 
             Map<String, String> headers = new HashMap<>();
             for (Map.Entry<String, String> entry : rqst.headers()) {

@@ -38,7 +38,7 @@ fi
 echo
 
 echo "Test 4: HTTPS tunneling"
-if curl curl -x localhost:8000 "https://echo.free.beeceptor.com/sample-request?author=beeceptor"; then
+if curl -x localhost:8000 "https://echo.free.beeceptor.com/sample-request?author=beeceptor"; then
     echo "✅ Tunnel successfuly worked. Test passed"
     ((success_count++))
 else

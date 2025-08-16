@@ -7,8 +7,8 @@ package com.example.proxy.config;
 
 public class ProtocolConfig extends ProxyConfig {
     
-    public ProtocolConfig(String protocol, int port) {
-        super(protocol, port);
+    public ProtocolConfig(String protocol, int port, boolean isCluster) {
+        super(protocol, port, isCluster);
         
         if (protocol.equals("HTTP1")) {
         } else if (protocol.equals("HTTP2")) {
