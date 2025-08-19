@@ -1,4 +1,4 @@
-package com.example.proxy.cli.cluster;
+package com.example.proxy.core.cluster;
 
 import io.netty.buffer.ByteBuf;
 

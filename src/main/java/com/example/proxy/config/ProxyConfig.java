@@ -9,7 +9,6 @@ package com.example.proxy.config;
 
 public class ProxyConfig {
     
-    // Global proxy settings
     protected String protocol;
     protected int port;
     protected boolean sslEnabled;

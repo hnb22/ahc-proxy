@@ -54,15 +54,16 @@ public class ProxyServer {
 
         try {
             ServerBootstrap bootstrap = new ServerBootstrap();
+            String host = this.serverInitializer.getHost();
             this.serverChannelFuture = bootstrap.group(this.bossGroup, this.workerGroup)
                 .channel(NioServerSocketChannel.class)
                 .childHandler(this.serverInitializer)
-                .bind(proxyConfig.getPort())
+                .bind(host, proxyConfig.getPort())
                 .sync();
 
             this.currentState = State.RUNNING;
-            logger.info("Proxy server started on port {} with protocol: {}", 
-                       proxyConfig.getPort(), proxyConfig.getProtocol());
+            logger.info("Proxy server started on {}:{} with protocol: {}", 
+                       host, proxyConfig.getPort(), proxyConfig.getProtocol());
                              
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

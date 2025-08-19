@@ -1,5 +1,7 @@
 package examples;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,14 +13,15 @@ import com.example.proxy.exceptions.ProxyException;
 public class TestHttp1Cluster {
 
     private static final Logger logger = LoggerFactory.getLogger(TestHttp1Cluster.class);
-    
-    static final int LOCAL_PORT = Integer.parseInt(System.getProperty("localPort", "8000"));
+    private static final int LOCAL_PORT = Integer.parseInt(System.getProperty("localPort", "8000"));
+    private static final String LOCAL_HOST = "localhost";
+    private static final List<String> routingDestinations = List.of("localhost:8001", "localhost:8002", "localhost:8003");
 
     public static void main(String[] args) throws ProxyException {
         ProxyServer proxy = new ProxyServer(new ProtocolConfig("HTTP1", LOCAL_PORT, true));
 
         try {
-            proxy.initialize(new ServerInitializer(LOCAL_PORT));
+            proxy.initialize(new ServerInitializer(LOCAL_HOST, routingDestinations));
             proxy.start();
             
             logger.info("Proxy server is running. Press Ctrl+C to stop.");

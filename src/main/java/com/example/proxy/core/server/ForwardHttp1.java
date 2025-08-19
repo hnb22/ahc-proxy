@@ -2,7 +2,7 @@ package com.example.proxy.core.server;
 
 import java.util.Map;
 
-import com.example.proxy.cli.cluster.ShareDataRequest;
+import com.example.proxy.core.cluster.ShareDataRequest;
 
 import io.netty.buffer.ByteBuf;
 

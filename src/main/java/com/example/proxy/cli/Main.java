@@ -65,9 +65,9 @@ public class Main implements Runnable {
 
         @Override
         public void run() {
-            ProxyServer proxy = new ProxyServer(new ProtocolConfig(protocol, port));
+            ProxyServer proxy = new ProxyServer(new ProtocolConfig(protocol, port, false));
             try {
-                proxy.initialize(new ServerInitializer(port));
+                proxy.initialize(new ServerInitializer(host, null));
                 proxy.start();
                 proxy.sync();
             } catch (Exception e) {

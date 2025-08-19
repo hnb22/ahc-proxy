@@ -1,7 +1,9 @@
 package com.example.proxy.core.server;
 
-import com.example.proxy.cli.cluster.HttpServerCodecCluster;
+import java.util.List;
+
 import com.example.proxy.config.ProxyConfig;
+import com.example.proxy.core.cluster.Http1ServerHandlerCluster;
 import com.example.proxy.core.server.handlers.Http1ServerHandler;
 import com.example.proxy.core.server.handlers.Http2ServerHandler;
 
@@ -19,12 +21,18 @@ import io.netty.handler.codec.http2.Http2MultiplexHandler;
 
 public class ServerInitializer extends ChannelInitializer<SocketChannel> {
     
-    private final int port;
+    private final String host;
+    private final List<String> destinations;
     //TODO: make config immutable
     private ProxyConfig config;
 
-    public ServerInitializer(int port) {
-        this.port = port;
+    public ServerInitializer(String host, List<String> destinations) {
+        this.destinations = destinations;
+        this.host = host;
+    }
+
+    public String getHost() {
+        return host;
     }
 
     @Override
@@ -80,9 +88,9 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
 	}
 
 	private void configureHttp1PipelineCluster(ChannelPipeline pipeline) {
-        pipeline.addLast("http-codec-cluster", new HttpServerCodecCluster());
-        pipeline.addLast("http-aggregator-cluster", new HttpObjectAggregatorCluster(65536));
-        pipeline.addLast("http1-handler-cluster", new Http1ServerHandlerCluster());
+        pipeline.addLast("http-codec", new HttpServerCodec());
+        pipeline.addLast("http-aggregator", new HttpObjectAggregator(65536));
+        pipeline.addLast("http1-handler-cluster", new Http1ServerHandlerCluster(this.destinations)); 
     }
 
 	private void configureWebSocketPipeline(ChannelPipeline pipeline) {

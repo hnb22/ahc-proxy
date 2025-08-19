@@ -1,0 +1,1 @@
+mvn exec:java -Dexec.mainClass="examples.TestHttp1Cluster"
