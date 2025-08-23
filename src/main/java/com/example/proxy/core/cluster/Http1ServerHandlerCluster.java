@@ -288,22 +288,70 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) throws Exception {
         try {
-            // First, handle the original request normally
-            ForwardRequest request = parseIncomingMessage(ctx, msg);
+            // Check if this is an HTTPS CONNECT request
+            if ("CONNECT".equals(msg.method().name())) {
+                // Handle HTTPS tunneling without aggregation - just forward to original destination
+                logger.info("HTTPS CONNECT request detected, handling without clustering");
+                
+                ByteBuf originalContent = msg.content().copy();
+                FullHttpRequest originalMsgCopy = new DefaultFullHttpRequest(
+                    msg.protocolVersion(),
+                    msg.method(),
+                    msg.uri(),
+                    originalContent
+                );
+                originalMsgCopy.headers().set(msg.headers());
+                originalMsgCopy.trailingHeaders().set(msg.trailingHeaders());
+                
+                ForwardRequest request = parseIncomingMessage(ctx, originalMsgCopy);
+                if (request != null) {
+                    BackendTarget target = routeToBackend(request);
+                    if (target != null) {
+                        // Use the original forwardToBackend method for HTTPS tunneling
+                        boolean success = forwardToBackend(ctx, request, target);
+                        if (!success) {
+                            handleError(ctx, new Exception("Failed to forward HTTPS CONNECT request"), request);
+                        }
+                    } else {
+                        handleError(ctx, new Exception("Failed to create BackendTarget for HTTPS CONNECT"), request);
+                    }
+                } else {
+                    handleError(ctx, new Exception("Failed to parse HTTPS CONNECT request"), request);
+                }
+                return; // Skip clustering for HTTPS
+            }
+            
+            // Regular HTTP request - use clustering and aggregation
+            int totalExpectedResponses = 1 + destinations.size();
+            ClusterResponseAggregator aggregator = new ClusterResponseAggregator(ctx, null, totalExpectedResponses);
+            
+            // First, handle the original request with its own ByteBuf copy to avoid reference counting issues
+            ByteBuf originalContent = msg.content().copy();
+            FullHttpRequest originalMsgCopy = new DefaultFullHttpRequest(
+                msg.protocolVersion(),
+                msg.method(),
+                msg.uri(),
+                originalContent
+            );
+            originalMsgCopy.headers().set(msg.headers());
+            originalMsgCopy.trailingHeaders().set(msg.trailingHeaders());
+            
+            ForwardRequest request = parseIncomingMessage(ctx, originalMsgCopy);
             if (request != null) {
                 BackendTarget target = routeToBackend(request);
                 if (target != null) {
-                    boolean success = forwardToBackend(ctx, request, target);
+                    boolean success = forwardToBackendWithAggregation(ctx, request, target, aggregator, "original");
                     if (!success) {
-                        handleError(ctx, new Exception("Failed to forward request to server backend."), request);
+                        aggregator.addResponse(createErrorResponse("Failed to forward request to server backend."), "original");
                     }
                 } else {
-                    handleError(ctx, new Exception("Failed to create BackendTarget container"), request);
+                    aggregator.addResponse(createErrorResponse("Failed to create BackendTarget container"), "original");
                 }
             } else {
-                handleError(ctx, new Exception("Failed to parse incoming message"), request);
+                aggregator.addResponse(createErrorResponse("Failed to parse incoming message"), "original");
                 return;
             }
+            
             // Additional routing to predefined destinations (cluster)
             for (String url : this.destinations) {
                 try {     
@@ -350,18 +398,94 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
                     
                     BackendTarget clusterTarget = new BackendTarget(host, port, path, metadata);
                     
-                    boolean success = forwardToBackend(ctx, clusterRequest, clusterTarget);
+                    boolean success = forwardToBackendWithAggregation(ctx, clusterRequest, clusterTarget, aggregator, url);
                     if (!success) {
-                        System.err.println("Failed to forward to cluster destination: " + url);
+                        aggregator.addResponse(createErrorResponse("Failed to forward to cluster destination: " + url), url);
                     }
                     
                 } catch (Exception e) {
-                    System.err.println("Failed to forward to cluster destination " + url + ": " + e.getMessage());
+                    aggregator.addResponse(createErrorResponse("Failed to forward to cluster destination " + url + ": " + e.getMessage()), url);
                 }
             }
 
         } catch (Exception e) {
             handleError(ctx, e, null);
+        }
+    }
+
+    /**
+     * Creates an error response for aggregation
+     */
+    private FullHttpResponse createErrorResponse(String errorMessage) {
+        DefaultFullHttpResponse errorResponse = new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_1,
+            HttpResponseStatus.INTERNAL_SERVER_ERROR,
+            null
+        );
+        errorResponse.headers().set("X-Error-Message", errorMessage.replace("\"", "\\\""));
+        return errorResponse;
+    }
+
+    /**
+     * Forward to backend with response aggregation instead of immediate client response
+     */
+    private boolean forwardToBackendWithAggregation(ChannelHandlerContext ctx, ForwardRequest request, BackendTarget target, ClusterResponseAggregator aggregator, String source) {
+        try {
+            if (!(request instanceof ForwardHttp1)) {
+                logger.error("Invalid request type for HTTP1");
+                return false;
+            }
+
+            ForwardHttp1 httpRequest = (ForwardHttp1) request;
+            String protocol = target.getMetadata().get("protocol");
+            String auth = target.getMetadata().get("auth");
+            String comp = target.getMetadata().get("comp");
+
+            if ("http1-no-soap".equals(protocol)) {
+                HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
+                                                                        auth != null ? auth : "none",
+                                                                        comp != null ? comp : "none");
+                
+                // Custom response processor that sends responses to aggregator instead of client
+                BackendCallbackHttp1.ResponseProcessor responseProcessor = new BackendCallbackHttp1.ResponseProcessor() {
+                    @Override
+                    public Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse) {
+                        return Http1ServerHandlerCluster.this.processBackendResponse(ctx, backendResponse);
+                    }
+                    
+                    @Override
+                    public void sendResponseToClient(ChannelHandlerContext ctx, Object response, ForwardRequest originalRequest) {
+                        // Instead of sending to client, add to aggregator
+                        aggregator.addResponse(response, source);
+                    }
+                    
+                    @Override
+                    public void handleError(ChannelHandlerContext ctx, Throwable cause, ForwardRequest request) {
+                        // Instead of sending error to client, add error to aggregator
+                        aggregator.addResponse(createErrorResponse(cause.getMessage()), source);
+                    }
+                };
+
+                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor);
+                
+                // Since we handle HTTPS separately, this should only be regular HTTP
+                backendClient.forwardRequestHTTP(httpRequest, target, callback)
+                    .whenComplete((success, throwable) -> {
+                        if (throwable != null) {
+                            aggregator.addResponse(createErrorResponse(throwable.getMessage()), source);
+                        } else if (!success) {
+                            aggregator.addResponse(createErrorResponse("Failed to establish connection"), source);
+                        }
+                    });              
+                return true;
+            }
+
+            return false;
+
+        } catch (Exception e) {
+            logger.error("Error forwarding to backend: {}", e.getMessage());
+            aggregator.addResponse(createErrorResponse(e.getMessage()), source);
+            return false;
         }
     }
 }
