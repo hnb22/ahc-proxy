@@ -249,7 +249,7 @@ public class HttpBackendClient {
         clientChannel.pipeline().addLast("buffer-handler", bufferHandler);
 
         try {
-            Bootstrap backendClient = createBootstrapHttps(callback);
+            Bootstrap backendClient = createBootstrapHttps();
             logger.info("Connecting to: {}:{}", target.getHost(), target.getPort());
             ChannelFuture connectFuture = backendClient.connect(target.getHost(), target.getPort());
 
@@ -301,7 +301,7 @@ public class HttpBackendClient {
         }
     }
 
-    private Bootstrap createBootstrapHttps(BackendResponseCallback callback) {
+    private Bootstrap createBootstrapHttps() {
         Bootstrap client = new Bootstrap();
         client.group(eventLoopGroup)
             .channel(NioSocketChannel.class)

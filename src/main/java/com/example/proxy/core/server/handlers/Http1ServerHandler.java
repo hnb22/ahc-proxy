@@ -121,12 +121,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             }
 
             Map<String, String> metadata = new HashMap<>();
-            metadata.put("routingRule", "path-based");
-            if (headers.containsValue("text/xml")) {
-                metadata.put("protocol", "http1-soap");
-            } else {
-                metadata.put("protocol", "http1-no-soap");
-            }   
+            metadata.put("protocol", "http1");
             
             if (rqstHttp.hasAuth()) {
                 metadata.put("auth", rqstHttp.getAuthStage().getAlg());
@@ -156,7 +151,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             String auth = target.getMetadata().get("auth");
             String comp = target.getMetadata().get("comp");
 
-            if ("http1-no-soap".equals(protocol)) {
+            if ("http1".equals(protocol)) {
                 HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
                                                                         auth != null ? auth : "none",
                                                                         comp != null ? comp : "none");

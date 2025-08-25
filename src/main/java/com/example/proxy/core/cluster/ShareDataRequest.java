@@ -2,6 +2,8 @@ package com.example.proxy.core.cluster;
 
 import io.netty.buffer.ByteBuf;
 
+//TODO: use this interface for Aggregator class (refactor)
+
 public interface ShareDataRequest {
     
     /**
