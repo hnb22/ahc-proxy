@@ -7,9 +7,10 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.util.List;
 
-import com.example.proxy.config.ProtocolConfig;
+import com.example.proxy.config.ProxyConfig;
 import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
+import com.example.proxy.core.server.ServerInitializer.Notifier;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -65,9 +66,9 @@ public class Main implements Runnable {
 
         @Override
         public void run() {
-            ProxyServer proxy = new ProxyServer(new ProtocolConfig(protocol, port, false));
+            ProxyServer proxy = new ProxyServer(new ProxyConfig(protocol));
             try {
-                proxy.initialize(new ServerInitializer(host, null));
+                proxy.initialize(new ServerInitializer(host, port, Notifier.NO));
                 proxy.start();
                 proxy.sync();
             } catch (Exception e) {

@@ -3,7 +3,7 @@ package com.example.proxy.core.server;
 import java.util.List;
 
 import com.example.proxy.config.ProxyConfig;
-import com.example.proxy.core.cluster.Http1ServerHandlerCluster;
+import com.example.proxy.core.notifier.NotifierHttp1ServerHandler;
 import com.example.proxy.core.server.handlers.Http1ServerHandler;
 import com.example.proxy.core.server.handlers.Http2ServerHandler;
 
@@ -21,18 +21,32 @@ import io.netty.handler.codec.http2.Http2MultiplexHandler;
 
 public class ServerInitializer extends ChannelInitializer<SocketChannel> {
     
-    private final String host;
-    private final List<String> destinations;
     //TODO: make config immutable
     private ProxyConfig config;
+    private List<String> destinations;
+    private Notifier isNotifier;
 
-    public ServerInitializer(String host, List<String> destinations) {
+    private String host;
+    private int port;
+
+    public ServerInitializer(String host, int port, Notifier isNotifier, List<String> destinations) {
         this.destinations = destinations;
+        this.isNotifier = isNotifier;
+        
         this.host = host;
+        this.port = port;
     }
 
-    public String getHost() {
-        return host;
+    public ServerInitializer(String host, int port, Notifier isNotifier) {
+        this.isNotifier = isNotifier;
+
+        this.host = host;
+        this.port = port;
+    }
+
+    public enum Notifier {
+        YES,
+        NO
     }
 
     @Override
@@ -44,14 +58,14 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
         }
 
         String protocol = this.config.getProtocol();
-        boolean isCluster = this.config.isCluster();
+        Notifier isNotifier = this.isNotifier;
 
-        if (isCluster) {
+        if (isNotifier == isNotifier.YES) {
             switch (protocol.toUpperCase()) {
-                case "HTTP1":
+                case "HTTP/1.1":
                     configureHttp1PipelineCluster(pipeline);
                     break;
-                case "HTTP2":
+                case "HTTP/2":
                     configureHttp2PipelineCluster(pipeline);
                     break;
                 case "WEBSOCKET":
@@ -62,10 +76,10 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
             }
         } else {
             switch (protocol.toUpperCase()) {
-                case "HTTP1":
+                case "HTTP/1.1":
                     configureHttp1Pipeline(pipeline);
                     break;
-                case "HTTP2":
+                case "HTTP/2":
                     configureHttp2Pipeline(pipeline);
                     break;
                 case "WEBSOCKET":
@@ -90,7 +104,7 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
 	private void configureHttp1PipelineCluster(ChannelPipeline pipeline) {
         pipeline.addLast("http-codec", new HttpServerCodec());
         pipeline.addLast("http-aggregator", new HttpObjectAggregator(65536));
-        pipeline.addLast("http1-handler-cluster", new Http1ServerHandlerCluster(this.destinations)); 
+        pipeline.addLast("http1-handler-cluster", new NotifierHttp1ServerHandler(this.destinations)); 
     }
 
 	private void configureWebSocketPipeline(ChannelPipeline pipeline) {
@@ -110,7 +124,16 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
         
     }
 
-    protected void addConfig(ProxyConfig config) {
+    public void addConfig(ProxyConfig config) {
         this.config = config;
     }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
 }

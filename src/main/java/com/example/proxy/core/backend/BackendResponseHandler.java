@@ -24,7 +24,8 @@ public class BackendResponseHandler extends SimpleChannelInboundHandler<FullHttp
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpResponse response) throws Exception {
         
         if (callback != null) {
-            callback.onResponse(response);
+            FullHttpResponse responseCopy = response.copy();
+            callback.onResponse(responseCopy);
         } else {
         }
         

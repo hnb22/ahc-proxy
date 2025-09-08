@@ -1,4 +1,4 @@
-package com.example.proxy.core.cluster;
+package com.example.proxy.core.notifier;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -25,9 +25,9 @@ import io.netty.handler.codec.http.HttpVersion;
  * Aggregates responses from multiple backend destinations before sending 
  * a single combined response back to the client.
  */
-public class ClusterResponseAggregator {
+public class NotifierResponseAggregator {
     
-    private static final Logger logger = LoggerFactory.getLogger(ClusterResponseAggregator.class);
+    private static final Logger logger = LoggerFactory.getLogger(NotifierResponseAggregator.class);
     
     private final List<ResponseData> responses = new ArrayList<>();
     private final AtomicInteger expectedResponses;
@@ -38,9 +38,9 @@ public class ClusterResponseAggregator {
     private ScheduledFuture<?> timeoutTask;
     
     // Static map to track aggregators by request ID
-    private static final Map<String, ClusterResponseAggregator> activeAggregators = new ConcurrentHashMap<>();
+    private static final Map<String, NotifierResponseAggregator> activeAggregators = new ConcurrentHashMap<>();
     
-    public ClusterResponseAggregator(ChannelHandlerContext ctx, ForwardRequest request, int expectedCount) {
+    public NotifierResponseAggregator(ChannelHandlerContext ctx, ForwardRequest request, int expectedCount) {
         this.clientCtx = ctx;
         this.expectedResponses = new AtomicInteger(expectedCount);
         this.requestId = generateRequestId(ctx, request);
@@ -86,7 +86,7 @@ public class ClusterResponseAggregator {
     /**
      * Get an existing aggregator for a request, or null if not found
      */
-    public static ClusterResponseAggregator getAggregator(String requestId) {
+    public static NotifierResponseAggregator getAggregator(String requestId) {
         return activeAggregators.get(requestId);
     }
     

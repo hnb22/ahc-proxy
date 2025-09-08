@@ -32,9 +32,10 @@ package examples;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.example.proxy.config.ProtocolConfig;
+import com.example.proxy.config.ProxyConfig;
 import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
+import com.example.proxy.core.server.ServerInitializer.Cluster;
 import com.example.proxy.exceptions.ProxyException;
 
 public class TestHttp1 {
@@ -45,10 +46,10 @@ public class TestHttp1 {
     static final String LOCAL_HOST = "localhost";
 
     public static void main(String[] args) throws ProxyException {
-        ProxyServer proxy = new ProxyServer(new ProtocolConfig("HTTP1", LOCAL_PORT, false));
+        ProxyServer proxy = new ProxyServer(new ProxyConfig("HTTP/1.1"));
 
         try {
-            proxy.initialize(new ServerInitializer(LOCAL_HOST, null));
+            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT, Notifier.NO));
             proxy.start();
             
             logger.info("Proxy server is running. Press Ctrl+C to stop.");
@@ -66,9 +67,8 @@ public class TestHttp1 {
 }
 ```
 
-#### Cluster Mode
+#### Notifier Mode
 ```java
-// Start cluster proxy with predefined destinations
 package examples;
 
 import java.util.List;
@@ -76,9 +76,10 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.example.proxy.config.ProtocolConfig;
+import com.example.proxy.config.ProxyConfig;
 import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
+import com.example.proxy.core.server.ServerInitializer.Notifier;
 import com.example.proxy.exceptions.ProxyException;
 
 public class TestHttp1Cluster {
@@ -89,10 +90,10 @@ public class TestHttp1Cluster {
     private static final List<String> routingDestinations = List.of("localhost:8001", "localhost:8002", "localhost:8003");
 
     public static void main(String[] args) throws ProxyException {
-        ProxyServer proxy = new ProxyServer(new ProtocolConfig("HTTP1", LOCAL_PORT, true));
+        ProxyServer proxy = new ProxyServer(new ProxyConfig("HTTP/1.1"));
 
         try {
-            proxy.initialize(new ServerInitializer(LOCAL_HOST, routingDestinations));
+            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT, Notifier.YES, routingDestinations));
             proxy.start();
             
             logger.info("Proxy server is running. Press Ctrl+C to stop.");
@@ -112,9 +113,9 @@ public class TestHttp1Cluster {
 
 The cluster example routes requests to:
 - **Original destination** (from the request URL)
-- **localhost:8001** (cluster destination 1)
-- **localhost:8002** (cluster destination 2)
-- **localhost:8003** (cluster destination 3)
+- **localhost:8001** (logs to destination 1)
+- **localhost:8002** (logs to destination 2)
+- **localhost:8003** (logs to destination 3)
 
 ### Making Requests
 
@@ -142,23 +143,6 @@ curl -x localhost:8000 \
 curl -x localhost:8000 "https://echo.free.beeceptor.com/sample-request?author=beeceptor"
 ```
 
-## Clustering
-```
-Client Request
-      ↓
-  Proxy Server
-      ├── → Original Destination (echo.free.beeceptor.com)
-      ├── → Cluster Destination 1 (localhost:8001)
-      ├── → Cluster Destination 2 (localhost:8002)
-      └── → Cluster Destination 3 (localhost:8003)
-      
-All responses collected and aggregated
-      ↓
-Combined JSON Response → Client
-```
+### Cluster Log Limitations
 
-### Clustering Limitations
-
-- **HTTPS requests**: Clustering is **not supported** for HTTPS requests.
-- **WebSocket connections**: Not supported in cluster mode
-- **Streaming responses**: Large responses are fully buffered before aggregation
+- **HTTPS requests**: Logging requests via backend is **not yet supported** for HTTPS requests.

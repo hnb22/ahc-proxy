@@ -16,7 +16,7 @@ public class ForwardHttp2 extends ForwardRequest {
     private boolean body;
 
     public ForwardHttp2(ByteBuf data, String method, String path, String authority, Map<String, String> headers, int headerId, int dataId, boolean body) {
-        super(data, "HTTP2");
+        super(data, "HTTP/2");
         this.method = method;
         this.path = path;
         this.authority = authority;

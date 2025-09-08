@@ -2,11 +2,11 @@ package com.example.proxy.core.server;
 
 import java.util.Map;
 
-import com.example.proxy.core.cluster.ShareDataRequest;
+import com.example.proxy.core.notifier.ShareDataRequest;
 
 import io.netty.buffer.ByteBuf;
 
-public class ForwardHttp1 extends ForwardRequest implements ShareDataRequest{
+public class ForwardHttp1 extends ForwardRequest implements ShareDataRequest {
     
     private final String method;
     private final String uri;
@@ -14,7 +14,7 @@ public class ForwardHttp1 extends ForwardRequest implements ShareDataRequest{
     private final String clientAddress;
 
     public ForwardHttp1(ByteBuf data, String method, String uri, Map<String, String> headers, String clientAddress) {
-        super(data, "HTTP1");
+        super(data, "HTTP/1.1");
         this.method = method;
         this.uri = uri;
         this.headers = headers;

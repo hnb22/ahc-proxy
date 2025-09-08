@@ -9,51 +9,13 @@ package com.example.proxy.config;
 
 public class ProxyConfig {
     
-    protected String protocol;
-    protected int port;
-    protected boolean sslEnabled;
-    protected int maxConnections;
-    protected int timeoutMs;
-    protected boolean isCluster;
+    private String protocol;
     
-    public ProxyConfig(String protocol, int port, boolean isCluster) {
+    public ProxyConfig(String protocol) {
         this.protocol = protocol;
-        this.port = port;
-        this.sslEnabled = false;
-        this.maxConnections = 1000;
-        this.timeoutMs = 30000;
-        this.isCluster = isCluster;
-    }
-    
-    public String getProtocol() {
-        return protocol;
-    }
-    
-    public int getPort() {
-        return port;
-    }
-    
-    public boolean isSslEnabled() {
-        return sslEnabled;
-    }
-    
-    public int getMaxConnections() {
-        return maxConnections;
-    }
-    
-    public int getTimeoutMs() {
-        return timeoutMs;
-    }
-    
-    public void setSslEnabled(boolean sslEnabled) {
-        this.sslEnabled = sslEnabled;
-    }
-    
-    public void setMaxConnections(int maxConnections) {
-        this.maxConnections = maxConnections;
     }
 
-    public boolean isCluster() {
-        return isCluster;
+    public String getProtocol() {
+        return protocol;
     }
 }

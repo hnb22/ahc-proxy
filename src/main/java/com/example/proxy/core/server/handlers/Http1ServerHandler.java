@@ -51,7 +51,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
         try {
             String method = rqst.method().name();
             String uri = rqst.uri();
-            ByteBuf body = rqst.content();
+            ByteBuf body = rqst.content().copy();
 
             Map<String, String> headers = new HashMap<>();
             for (Map.Entry<String, String> entry : rqst.headers()) {
@@ -121,7 +121,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             }
 
             Map<String, String> metadata = new HashMap<>();
-            metadata.put("protocol", "http1");
+            metadata.put("protocol", "HTTP/1.1");
             
             if (rqstHttp.hasAuth()) {
                 metadata.put("auth", rqstHttp.getAuthStage().getAlg());
@@ -151,7 +151,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             String auth = target.getMetadata().get("auth");
             String comp = target.getMetadata().get("comp");
 
-            if ("http1".equals(protocol)) {
+            if ("HTTP/1.1".equals(protocol)) {
                 HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
                                                                         auth != null ? auth : "none",
                                                                         comp != null ? comp : "none");
@@ -261,7 +261,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
 
     @Override
     public String getProtocolType() {
-        return "HTTP1";
+        return "HTTP/1.1";
     }
 
     @Override

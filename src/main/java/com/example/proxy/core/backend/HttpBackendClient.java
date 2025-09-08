@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 import com.example.proxy.core.server.ForwardHttp1;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -138,11 +138,15 @@ public class HttpBackendClient {
     }
     
     private FullHttpRequest createBackendRequest(ForwardHttp1 request, BackendTarget target) {
+        // Retain the original ByteBuf to increment its reference count
+        // This prevents the "refCnt: 0" error when the HTTP encoder releases it
+        ByteBuf originalData = request.getData().retain();
+        
         FullHttpRequest backendRequest = new DefaultFullHttpRequest(
             HttpVersion.HTTP_1_1,
             HttpMethod.valueOf(request.getMethod()),
             target.getPath(),
-            Unpooled.wrappedBuffer(request.getData())
+            originalData
         );
         
         request.getHeaders().forEach((key, value) -> 

@@ -1,4 +1,4 @@
-package com.example.proxy.core.cluster;
+package com.example.proxy.core.notifier;
 
 import java.util.HashMap;
 import java.util.List;
@@ -28,12 +28,12 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
-public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullHttpRequest> implements ServerHandler {
+public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> implements ServerHandler {
     
-    private static final Logger logger = LoggerFactory.getLogger(Http1ServerHandlerCluster.class);
+    private static final Logger logger = LoggerFactory.getLogger(NotifierHttp1ServerHandler.class);
     List<String> destinations;
 
-    public Http1ServerHandlerCluster(List<String> destinations) {
+    public NotifierHttp1ServerHandler(List<String> destinations) {
         this.destinations = destinations;
     }
 
@@ -160,17 +160,17 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
                 BackendCallbackHttp1.ResponseProcessor responseProcessor = new BackendCallbackHttp1.ResponseProcessor() {
                     @Override
                     public Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse) {
-                        return Http1ServerHandlerCluster.this.processBackendResponse(ctx, backendResponse);
+                        return NotifierHttp1ServerHandler.this.processBackendResponse(ctx, backendResponse);
                     }
                     
                     @Override
                     public void sendResponseToClient(ChannelHandlerContext ctx, Object response, ForwardRequest originalRequest) {
-                        Http1ServerHandlerCluster.this.sendResponseToClient(ctx, response, originalRequest);
+                        NotifierHttp1ServerHandler.this.sendResponseToClient(ctx, response, originalRequest);
                     }
                     
                     @Override
                     public void handleError(ChannelHandlerContext ctx, Throwable cause, ForwardRequest request) {
-                        Http1ServerHandlerCluster.this.handleError(ctx, cause, request);
+                        NotifierHttp1ServerHandler.this.handleError(ctx, cause, request);
                     }
                 };
 
@@ -262,7 +262,7 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
 
     @Override
     public String getProtocolType() {
-        return "HTTP1";
+        return "HTTP/1.1";
     }
 
     @Override
@@ -323,7 +323,7 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
             
             // Regular HTTP request - use clustering and aggregation
             int totalExpectedResponses = 1 + destinations.size();
-            ClusterResponseAggregator aggregator = new ClusterResponseAggregator(ctx, null, totalExpectedResponses);
+            NotifierResponseAggregator aggregator = new NotifierResponseAggregator(ctx, null, totalExpectedResponses);
             
             // First, handle the original request with its own ByteBuf copy to avoid reference counting issues
             ByteBuf originalContent = msg.content().copy();
@@ -429,7 +429,7 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
     /**
      * Forward to backend with response aggregation instead of immediate client response
      */
-    private boolean forwardToBackendWithAggregation(ChannelHandlerContext ctx, ForwardRequest request, BackendTarget target, ClusterResponseAggregator aggregator, String source) {
+    private boolean forwardToBackendWithAggregation(ChannelHandlerContext ctx, ForwardRequest request, BackendTarget target, NotifierResponseAggregator aggregator, String source) {
         try {
             if (!(request instanceof ForwardHttp1)) {
                 logger.error("Invalid request type for HTTP1");
@@ -450,7 +450,7 @@ public class Http1ServerHandlerCluster extends SimpleChannelInboundHandler<FullH
                 BackendCallbackHttp1.ResponseProcessor responseProcessor = new BackendCallbackHttp1.ResponseProcessor() {
                     @Override
                     public Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse) {
-                        return Http1ServerHandlerCluster.this.processBackendResponse(ctx, backendResponse);
+                        return NotifierHttp1ServerHandler.this.processBackendResponse(ctx, backendResponse);
                     }
                     
                     @Override
