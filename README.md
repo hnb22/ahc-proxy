@@ -1,6 +1,6 @@
 # AHC Proxy Server
 
-A HTTP/HTTPS proxy server built with Java and Netty, featuring a CLI tool and clustering capabilities for request distribution and response aggregation.
+A HTTP/HTTPS proxy server built with Java and Netty, featuring a CLI tool and logging capabilities to servers.
 
 ## Installation
 
