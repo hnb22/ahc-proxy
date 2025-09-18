@@ -2,7 +2,7 @@
 
 # Initialize success counter
 success_count=0
-total_tests=4  # Only non-cluster tests (4 tests: GET, POST, POST+compression, HTTPS tunnel)
+total_tests=7  # Only non-cluster tests (4 tests: GET, POST, POST+compression, HTTPS tunnel)
 proxy_pid=""
 backend_pids=()  # Array to store backend server PIDs  
 
@@ -32,15 +32,15 @@ build_classpath() {
 
 # Function to start backend servers for cluster testing
 start_backend_servers() {
-    echo -e "${BLUE}Starting backend servers for cluster testing...${NC}"
+    echo -e "${BLUE}Starting backend application servers for cluster testing...${NC}"
     
-    # Start backend servers on ports 8001, 8002, 8003
+    # Start backend application servers on ports 8001, 8002, 8003
     for port in 8001 8002 8003; do
-        echo "Starting backend server on port $port..."
-        java -cp "$CLASSPATH" -DlocalPort=$port examples.TestHttp1 > /dev/null 2>&1 &
+        echo "Starting backend application server on port $port..."
+        java -cp "$CLASSPATH" -DlocalPort=$port -DserverName="backend-$port" examples.TestBackendServer > /dev/null 2>&1 &
         local pid=$!
         backend_pids+=($pid)
-        echo "Backend server started on port $port with PID: $pid"
+        echo "Backend application server started on port $port with PID: $pid"
         
         # Wait a moment for the server to start
         sleep 2
@@ -54,36 +54,36 @@ start_backend_servers() {
         # Test if server is accepting connections
         timeout 3 bash -c "until nc -z localhost $port; do sleep 0.1; done" 2>/dev/null
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✅ Backend server on port $port is accepting connections${NC}"
+            echo -e "${GREEN}✅ Backend application server on port $port is accepting connections${NC}"
         else
-            echo -e "${RED}❌ Backend server on port $port is not accepting connections${NC}"
+            echo -e "${RED}❌ Backend application server on port $port is not accepting connections${NC}"
             return 1
         fi
     done
     
-    echo -e "${GREEN}✅ All backend servers started successfully${NC}"
+    echo -e "${GREEN}✅ All backend application servers started successfully${NC}"
     return 0
 }
 
 # Function to stop backend servers
 stop_backend_servers() {
     if [ ${#backend_pids[@]} -gt 0 ]; then
-        echo -e "${YELLOW}Stopping backend servers...${NC}"
+        echo -e "${YELLOW}Stopping backend application servers...${NC}"
         for pid in "${backend_pids[@]}"; do
             if [ ! -z "$pid" ] && kill -0 $pid 2>/dev/null; then
-                echo "Stopping backend server (PID: $pid)..."
+                echo "Stopping backend application server (PID: $pid)..."
                 kill $pid
                 sleep 1
                 
                 # Force kill if still running
                 if kill -0 $pid 2>/dev/null; then
-                    echo "Force killing backend server (PID: $pid)..."
+                    echo "Force killing backend application server (PID: $pid)..."
                     kill -9 $pid
                 fi
             fi
         done
         backend_pids=()
-        echo -e "${GREEN}✅ All backend servers stopped${NC}"
+        echo -e "${GREEN}✅ All backend application servers stopped${NC}"
     fi
 }
 
@@ -254,28 +254,27 @@ fi
 stop_proxy
 sleep 2
 
-# TODO: Notifier log mode is not yet finished - commenting out for now
-# echo
-# echo -e "${BLUE}Testing Notifier log Proxy Server${NC}"
-# echo "============================="
+echo
+echo -e "${BLUE}Testing Notifier log Proxy Server${NC}"
+echo "============================="
 
-# # Start backend servers for cluster testing
-# if start_backend_servers; then
-#     # Test Notifier log proxy
-#     if start_notifier_log_proxy; then
-#         run_proxy_tests "cluster"
-#     else
-#         echo -e "${RED}❌ Failed to start cluster proxy server, skipping tests${NC}"
-#     fi
-#     
-#     # Stop the cluster proxy
-#     stop_proxy
-#     
-#     # Stop backend servers
-#     stop_backend_servers
-# else
-#     echo -e "${RED}❌ Failed to start backend servers, skipping cluster tests${NC}"
-# fi
+# Start backend servers for cluster testing
+if start_backend_servers; then
+    # Test Notifier log proxy
+    if start_notifier_log_proxy; then
+        run_proxy_tests "cluster"
+    else
+        echo -e "${RED}❌ Failed to start cluster proxy server, skipping tests${NC}"
+    fi
+    
+    # Stop the cluster proxy
+    stop_proxy
+    
+    # Stop backend application servers
+    stop_backend_servers
+else
+    echo -e "${RED}❌ Failed to start backend application servers, skipping cluster tests${NC}"
+fi
 
 echo
 echo -e "${YELLOW}ℹ️  Logger notifier mode tests are commented out (implementation not finished)${NC}"

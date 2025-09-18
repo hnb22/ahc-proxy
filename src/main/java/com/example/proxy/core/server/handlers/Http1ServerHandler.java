@@ -173,7 +173,7 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
                     }
                 };
 
-                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor);
+                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor, target);
                 
                 //HTTPS Tunneling
                 if ("CONNECT".equals(httpRequest.getMethod())) {

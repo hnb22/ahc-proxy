@@ -117,12 +117,7 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
             }
 
             Map<String, String> metadata = new HashMap<>();
-            metadata.put("routingRule", "path-based");
-            if (headers.containsValue("text/xml")) {
-                metadata.put("protocol", "http1-soap");
-            } else {
-                metadata.put("protocol", "http1-no-soap");
-            }   
+            metadata.put("protocol", "HTTP/1.1");
             
             if (rqstHttp.hasAuth()) {
                 metadata.put("auth", rqstHttp.getAuthStage().getAlg());
@@ -152,7 +147,7 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
             String auth = target.getMetadata().get("auth");
             String comp = target.getMetadata().get("comp");
 
-            if ("http1-no-soap".equals(protocol)) {
+            if ("HTTP/1.1".equals(protocol)) {
                 HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
                                                                         auth != null ? auth : "none",
                                                                         comp != null ? comp : "none");
@@ -174,7 +169,7 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
                     }
                 };
 
-                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor);
+                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor, target);
                 
                 //HTTPS Tunneling
                 if ("CONNECT".equals(httpRequest.getMethod())) {
@@ -393,8 +388,7 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
                     }
                     
                     Map<String, String> metadata = new HashMap<>();
-                    metadata.put("routingRule", "cluster");
-                    metadata.put("protocol", "http1-no-soap");
+                    metadata.put("protocol", "HTTP/1.1");
                     
                     BackendTarget clusterTarget = new BackendTarget(host, port, path, metadata);
                     
@@ -441,7 +435,7 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
             String auth = target.getMetadata().get("auth");
             String comp = target.getMetadata().get("comp");
 
-            if ("http1-no-soap".equals(protocol)) {
+            if ("HTTP/1.1".equals(protocol)) {
                 HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
                                                                         auth != null ? auth : "none",
                                                                         comp != null ? comp : "none");
@@ -466,7 +460,7 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
                     }
                 };
 
-                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor);
+                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor, target);
                 
                 // Since we handle HTTPS separately, this should only be regular HTTP
                 backendClient.forwardRequestHTTP(httpRequest, target, callback)

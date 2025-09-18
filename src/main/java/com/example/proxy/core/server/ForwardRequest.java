@@ -3,9 +3,9 @@ package com.example.proxy.core.server;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.example.proxy.core.pipeline.StagesManager;
-import com.example.proxy.core.pipeline.stages.AuthStage;
-import com.example.proxy.core.pipeline.stages.CompressionStage;
+import com.example.proxy.core.stages.AuthStage;
+import com.example.proxy.core.stages.CompressionStage;
+import com.example.proxy.core.stages.StagesManager;
 
 import io.netty.buffer.ByteBuf;
 

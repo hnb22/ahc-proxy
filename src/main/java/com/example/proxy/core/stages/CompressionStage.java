@@ -1,6 +1,4 @@
-package com.example.proxy.core.pipeline.stages;
-
-import com.example.proxy.core.pipeline.StagesManager;
+package com.example.proxy.core.stages;
 /* 
  *  Overview: Pipeline stage for compression with HTTP/1.x, HTTP/2. and WebSocket
  */

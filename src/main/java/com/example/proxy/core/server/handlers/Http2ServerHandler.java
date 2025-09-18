@@ -7,10 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.example.proxy.core.backend.BackendTarget;
-import com.example.proxy.core.pipeline.stages.AuthStage;
-import com.example.proxy.core.pipeline.stages.CompressionStage;
 import com.example.proxy.core.server.ForwardHttp2;
 import com.example.proxy.core.server.ForwardRequest;
+import com.example.proxy.core.stages.AuthStage;
+import com.example.proxy.core.stages.CompressionStage;
 import com.example.proxy.utils.HttpUtil;
 
 import io.netty.buffer.ByteBuf;

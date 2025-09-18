@@ -1,6 +1,6 @@
 # AHC Proxy Server
 
-A HTTP/HTTPS proxy server built with Java and Netty, featuring a CLI tool and logging capabilities to servers.
+A HTTP/HTTPS forward proxy server built with Java and Netty, featuring a CLI tool and distributed logging capabilities.
 
 ## Installation
 
@@ -14,14 +14,6 @@ cd ahc-proxy
 ```bash
 mvn clean install
 ```
-
-## Usage
-
-### CLI Tool
-
-The proxy server includes a CLI tool for easy management:
-
-#### Still needs implementation
 
 ### Starting the Proxy Server
 
@@ -67,7 +59,7 @@ public class TestHttp1 {
 }
 ```
 
-#### Notifier Mode (Still work in progress)
+#### Notifier Mode
 ```java
 package examples;
 
@@ -82,18 +74,18 @@ import com.example.proxy.core.server.ServerInitializer;
 import com.example.proxy.core.server.ServerInitializer.Notifier;
 import com.example.proxy.exceptions.ProxyException;
 
-public class TestHttp1Cluster {
+public class TestHttp1Notifier {
 
-    private static final Logger logger = LoggerFactory.getLogger(TestHttp1Cluster.class);
+    private static final Logger logger = LoggerFactory.getLogger(TestHttp1Notifier.class);
     private static final int LOCAL_PORT = Integer.parseInt(System.getProperty("localPort", "8000"));
     private static final String LOCAL_HOST = "localhost";
-    private static final List<String> routingDestinations = List.of("localhost:8001", "localhost:8002", "localhost:8003");
+    private static final List<String> loggingDestinations = List.of("localhost:8001", "localhost:8002", "localhost:8003");
 
     public static void main(String[] args) throws ProxyException {
         ProxyServer proxy = new ProxyServer(new ProxyConfig("HTTP/1.1"));
 
         try {
-            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT, Notifier.YES, routingDestinations));
+            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT, Notifier.YES, loggingDestinations));
             proxy.start();
             
             logger.info("Proxy server is running. Press Ctrl+C to stop.");
@@ -113,9 +105,9 @@ public class TestHttp1Cluster {
 
 The cluster example routes requests to:
 - **Original destination** (from the request URL)
-- **localhost:8001** (logs to destination 1)
-- **localhost:8002** (logs to destination 2)
-- **localhost:8003** (logs to destination 3)
+- **localhost:8001** (logs request to destination 1)
+- **localhost:8002** (logs request to destination 2)
+- **localhost:8003** (logs request to destination 3)
 
 ### Making Requests
 
