@@ -24,14 +24,12 @@ public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
     
-    // Dedicated notification log files
     private static final String NOTIFICATION_LOG_DIR = "logs/notifications";
     private static final String FORWARD_LOG_FILE = NOTIFICATION_LOG_DIR + "/forward-requests.log";
     private static final String RESPONSE_LOG_FILE = NOTIFICATION_LOG_DIR + "/responses.log";
     private static final String ERROR_LOG_FILE = NOTIFICATION_LOG_DIR + "/errors.log";
     
     static {
-        // Create notification log directory if it doesn't exist
         try {
             Path logDir = Paths.get(NOTIFICATION_LOG_DIR);
             if (!Files.exists(logDir)) {
@@ -56,20 +54,12 @@ public class NotificationService {
                 timestamp, source, destination, protocol
             );
             
-            // Console output for immediate visibility
             System.out.println(notification);
             
-            // Log using SLF4J for structured logging
             logger.info("Request forwarded - Source: {}, Destination: {}, Protocol: {} ", 
                        source, destination, protocol);
             
-            // Write to dedicated notification log file
             writeToLogFile(FORWARD_LOG_FILE, notification);
-            
-            // TODO: Add additional notification mechanisms
-            // - sendWebSocketNotification(notification);
-            // - publishToMessageQueue(notification);
-            // - sendToMonitoringDashboard(notification);
             
         } catch (Exception e) {
             logger.error("Failed to send forward notification: {}", e.getMessage(), e);

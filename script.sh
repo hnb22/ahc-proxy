@@ -2,9 +2,9 @@
 
 # Initialize success counter
 success_count=0
-total_tests=7  # Only non-cluster tests (4 tests: GET, POST, POST+compression, HTTPS tunnel)
+total_tests=7  
 proxy_pid=""
-backend_pids=()  # Array to store backend server PIDs  
+backend_pids=() 
 
 # Colors for output
 RED='\033[0;31m'
@@ -34,10 +34,9 @@ build_classpath() {
 start_backend_servers() {
     echo -e "${BLUE}Starting backend application servers for cluster testing...${NC}"
     
-    # Start backend application servers on ports 8001, 8002, 8003
     for port in 8001 8002 8003; do
         echo "Starting backend application server on port $port..."
-        java -cp "$CLASSPATH" -DlocalPort=$port -DserverName="backend-$port" examples.TestBackendServer > /dev/null 2>&1 &
+        java -cp "$CLASSPATH" -DlocalPort=$port -DserverName="server-$port" examples.TestBackendServer > /dev/null 2>&1 &
         local pid=$!
         backend_pids+=($pid)
         echo "Backend application server started on port $port with PID: $pid"

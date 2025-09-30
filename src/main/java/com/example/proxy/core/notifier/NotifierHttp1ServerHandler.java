@@ -105,11 +105,10 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
             String path = "";
             //HTTPS tunneling
             if ("CONNECT".equals(rqstHttp.getMethod())) {
-                //TODO: add helper method in HttpUtil
+                //TODO: use methods in HttpUtil
                 String[] both = uri.split(":");
                 host = both[0];
                 port = Integer.parseInt(both[1]);
-            //Regular HTTP
             } else {
                 host = HttpUtil.getHostFromURI(uri);
                 path = HttpUtil.getPathFromURI(uri);

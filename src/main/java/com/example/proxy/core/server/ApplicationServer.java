@@ -62,11 +62,10 @@ public class ApplicationServer {
         this.host = host;
         this.port = port;
         this.serverName = serverName;
-        this.logFile = String.format("logs/backends/%s-requests.log", serverName);
+        this.logFile = String.format("logs/servers/%s-requests.log", serverName);
         
-        // Create backend logs directory
         try {
-            Path logDir = Paths.get("logs/backends");
+            Path logDir = Paths.get("logs/servers");
             if (!Files.exists(logDir)) {
                 Files.createDirectories(logDir);
             }
@@ -101,7 +100,6 @@ public class ApplicationServer {
             
             logger.info("Application server '{}' started on {}:{}", serverName, host, port);
             
-            // Wait until the server socket is closed
             serverChannel.closeFuture().sync();
             
         } finally {
@@ -138,10 +136,8 @@ public class ApplicationServer {
         
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
-            // Log the incoming request
             logRequest(request, ctx);
             
-            // Create a simple JSON response
             String responseContent = createResponse(request);
             
             FullHttpResponse response = new DefaultFullHttpResponse(
@@ -155,7 +151,6 @@ public class ApplicationServer {
             response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
             response.headers().set("X-Server", serverName);
             
-            // Send response and close connection
             ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
         }
         
@@ -190,10 +185,8 @@ public class ApplicationServer {
                     timestamp, serverName, clientAddress, method, uri, version, headers.toString(), body
                 );
                 
-                // Log to console
                 logger.info("Request received on {}: {} {} from {}", serverName, method, uri, clientAddress);
                 
-                // Log to dedicated file
                 writeToLogFile(logEntry);
                 
             } catch (Exception e) {

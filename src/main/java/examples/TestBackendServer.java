@@ -15,7 +15,7 @@ public class TestBackendServer {
     
     static final int LOCAL_PORT = Integer.parseInt(System.getProperty("localPort", "8001"));
     static final String LOCAL_HOST = "localhost";
-    static final String SERVER_NAME = System.getProperty("serverName", "backend-" + LOCAL_PORT);
+    static final String SERVER_NAME = System.getProperty("serverName", "server-" + LOCAL_PORT);
     
     public static void main(String[] args) {
         ApplicationServer server = new ApplicationServer(LOCAL_HOST, LOCAL_PORT, SERVER_NAME);

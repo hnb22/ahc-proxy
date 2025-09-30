@@ -45,10 +45,8 @@ public class NotifierResponseAggregator {
         this.expectedResponses = new AtomicInteger(expectedCount);
         this.requestId = generateRequestId(ctx, request);
         
-        // Register this aggregator
         activeAggregators.put(requestId, this);
         
-        // Set timeout to send partial results after 10 seconds
         this.timeoutTask = ctx.executor().schedule(() -> {
             logger.warn("Timeout reached for request {}, sending partial response with {}/{} responses", 
                        requestId, receivedResponses.get(), expectedResponses.get());
@@ -209,14 +207,13 @@ public class NotifierResponseAggregator {
         final String source;
         final Object response;
         final long timestamp;
-        final String bodyContent; // Pre-captured body content to avoid ByteBuf issues
+        final String bodyContent; 
         
         ResponseData(String source, Object response, long timestamp) {
             this.source = source;
             this.response = response;
             this.timestamp = timestamp;
             
-            // Capture body content immediately before ByteBuf gets released
             String capturedBody = "";
             if (response instanceof FullHttpResponse) {
                 FullHttpResponse httpResp = (FullHttpResponse) response;

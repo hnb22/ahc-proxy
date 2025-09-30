@@ -147,63 +147,59 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             }
 
             ForwardHttp1 httpRequest = (ForwardHttp1) request;
-            String protocol = target.getMetadata().get("protocol");
             String auth = target.getMetadata().get("auth");
             String comp = target.getMetadata().get("comp");
 
-            if ("HTTP/1.1".equals(protocol)) {
-                HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
-                                                                        auth != null ? auth : "none",
-                                                                        comp != null ? comp : "none");
+            HttpBackendClient backendClient = new HttpBackendClient(ctx.channel().eventLoop(),
+                                                                    auth != null ? auth : "none",
+                                                                    comp != null ? comp : "none");
+            
+            BackendCallbackHttp1.ResponseProcessor responseProcessor = new BackendCallbackHttp1.ResponseProcessor() {
+                @Override
+                public Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse) {
+                    return Http1ServerHandler.this.processBackendResponse(ctx, backendResponse);
+                }
                 
-                BackendCallbackHttp1.ResponseProcessor responseProcessor = new BackendCallbackHttp1.ResponseProcessor() {
-                    @Override
-                    public Object processBackendResponse(ChannelHandlerContext ctx, Object backendResponse) {
-                        return Http1ServerHandler.this.processBackendResponse(ctx, backendResponse);
-                    }
-                    
-                    @Override
-                    public void sendResponseToClient(ChannelHandlerContext ctx, Object response, ForwardRequest originalRequest) {
-                        Http1ServerHandler.this.sendResponseToClient(ctx, response, originalRequest);
-                    }
-                    
-                    @Override
-                    public void handleError(ChannelHandlerContext ctx, Throwable cause, ForwardRequest request) {
-                        Http1ServerHandler.this.handleError(ctx, cause, request);
-                    }
-                };
-
-                BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor, target);
+                @Override
+                public void sendResponseToClient(ChannelHandlerContext ctx, Object response, ForwardRequest originalRequest) {
+                    Http1ServerHandler.this.sendResponseToClient(ctx, response, originalRequest);
+                }
                 
-                //HTTPS Tunneling
-                if ("CONNECT".equals(httpRequest.getMethod())) {
-                    FullHttpResponse response = new DefaultFullHttpResponse(
-                        HttpVersion.HTTP_1_1,
-                        new HttpResponseStatus(200, "Connection Established")
-                    );
-                    ctx.writeAndFlush(response);
-                    
-                    backendClient.forwardRequestHTTPS(ctx, httpRequest, target, callback)
-                        .whenComplete((success, throwable) -> {
-                            if (throwable != null) {
-                                handleError(ctx, throwable, httpRequest);
-                            } else if (!success) {
-                                handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
-                            }
-                        });
+                @Override
+                public void handleError(ChannelHandlerContext ctx, Throwable cause, ForwardRequest request) {
+                    Http1ServerHandler.this.handleError(ctx, cause, request);
+                }
+            };
 
-                } else {
-                    backendClient.forwardRequestHTTP(httpRequest, target, callback)
-                        .whenComplete((success, throwable) -> {
-                            if (throwable != null) {
-                                handleError(ctx, throwable, httpRequest);
-                            } else if (!success) {
-                                handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
-                            }
-                        });
-                }              
-                return true;
-            }
+            BackendResponseCallback callback = new BackendCallbackHttp1(ctx, httpRequest, responseProcessor, target);
+            
+            //HTTPS Tunneling
+            if ("CONNECT".equals(httpRequest.getMethod())) {
+                FullHttpResponse response = new DefaultFullHttpResponse(
+                    HttpVersion.HTTP_1_1,
+                    new HttpResponseStatus(200, "Connection Established")
+                );
+                ctx.writeAndFlush(response);
+                
+                backendClient.forwardRequestHTTPS(ctx, httpRequest, target, callback)
+                    .whenComplete((success, throwable) -> {
+                        if (throwable != null) {
+                            handleError(ctx, throwable, httpRequest);
+                        } else if (!success) {
+                            handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
+                        }
+                    });
+
+            } else {
+                backendClient.forwardRequestHTTP(httpRequest, target, callback)
+                    .whenComplete((success, throwable) -> {
+                        if (throwable != null) {
+                            handleError(ctx, throwable, httpRequest);
+                        } else if (!success) {
+                            handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
+                        }
+                    });
+            }                          
 
             return false;
 

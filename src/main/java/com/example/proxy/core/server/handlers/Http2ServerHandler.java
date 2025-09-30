@@ -129,7 +129,13 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
     
     @Override
     public boolean forwardToBackend(ChannelHandlerContext ctx, ForwardRequest request, BackendTarget target) {
-        // TODO Auto-generated method stub
+        if (!(request instanceof ForwardHttp2)) {
+            logger.error("Invalid request type for HTTP/2");
+            return false;
+        }
+
+        ForwardHttp2 httpRequest = (ForwardHttp2) request;
+s
         throw new UnsupportedOperationException("Unimplemented method 'forwardToBackend'");
     }
 
