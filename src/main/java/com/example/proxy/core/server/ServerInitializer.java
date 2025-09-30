@@ -6,6 +6,7 @@ import com.example.proxy.config.ProxyConfig;
 import com.example.proxy.core.notifier.NotifierHttp1ServerHandler;
 import com.example.proxy.core.server.handlers.Http1ServerHandler;
 import com.example.proxy.core.server.handlers.Http2ServerHandler;
+import com.example.proxy.exceptions.ProxyException;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -37,9 +38,7 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
         this.port = port;
     }
 
-    public ServerInitializer(String host, int port, Notifier isNotifier) {
-        this.isNotifier = isNotifier;
-
+    public ServerInitializer(String host, int port) {
         this.host = host;
         this.port = port;
     }
@@ -54,7 +53,7 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
         ChannelPipeline pipeline = ch.pipeline();
 
         if (config == null) {
-            //TODO: error message
+            throw new ProxyException("Error: no configuration settings enabled.");
         }
 
         String protocol = this.config.getProtocol();

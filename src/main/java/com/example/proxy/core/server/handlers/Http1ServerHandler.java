@@ -2,6 +2,7 @@ package com.example.proxy.core.server.handlers;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Queue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,10 @@ import com.example.proxy.core.backend.custom.BackendCallbackHttp1;
 import com.example.proxy.core.server.ForwardHttp1;
 import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.utils.HttpUtil;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -175,20 +180,23 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             
             //HTTPS Tunneling
             if ("CONNECT".equals(httpRequest.getMethod())) {
+                logger.info("Starting direct HTTPS tunnel to {}:{}", target.getHost(), target.getPort());
+                
+                // Send 200 response immediately
                 FullHttpResponse response = new DefaultFullHttpResponse(
                     HttpVersion.HTTP_1_1,
                     new HttpResponseStatus(200, "Connection Established")
                 );
-                ctx.writeAndFlush(response);
                 
-                backendClient.forwardRequestHTTPS(ctx, httpRequest, target, callback)
-                    .whenComplete((success, throwable) -> {
-                        if (throwable != null) {
-                            handleError(ctx, throwable, httpRequest);
-                        } else if (!success) {
-                            handleError(ctx, new Exception("Failed to establish connection"), httpRequest);
-                        }
-                    });
+                ctx.writeAndFlush(response).addListener(future -> {
+                    if (future.isSuccess()) {
+                        logger.info("200 response sent, establishing direct tunnel");
+                        establishDirectTunnel(ctx, target);
+                    } else {
+                        logger.error("Failed to send 200 response: {}", future.cause().getMessage());
+                        ctx.close();
+                    }
+                });
 
             } else {
                 backendClient.forwardRequestHTTP(httpRequest, target, callback)
@@ -268,10 +276,8 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
         
         FullHttpResponse response = (FullHttpResponse) backendResponse;
         
-        // Add proxy headers
         response.headers().set("X-Proxy-Server", "ahc-proxy-http1");
         
-        // Remove hop-by-hop headers
         response.headers().remove(HttpHeaderNames.CONNECTION);
         response.headers().remove("Proxy-Connection");
         
@@ -299,6 +305,134 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
             }
         } catch (Exception e) {
             handleError(ctx, e, null);
+        }
+    }
+    
+    private void setupTunnelRelay(Channel backendChannel, Queue<Object> buffer, Channel clientChannel) {
+        logger.info("Setting up tunnel relay - buffer: {}, client active: {}, backend active: {}", 
+                   buffer != null ? buffer.size() : "null", clientChannel.isActive(), backendChannel.isActive());
+        
+        // Forward any buffered data first
+        if (buffer != null) {
+            while (!buffer.isEmpty()) {
+                Object msg = buffer.poll();
+                if (msg != null) {
+                    logger.info("Forwarding buffered message: {}", msg.getClass().getSimpleName());
+                    backendChannel.writeAndFlush(msg);
+                }
+            }
+        }
+        
+        // Remove buffer handler if it exists
+        if (clientChannel.pipeline().get("buffer-handler") != null) {
+            logger.info("Removing buffer handler from client pipeline");
+            clientChannel.pipeline().remove("buffer-handler");
+        }
+        
+        // Set up bidirectional relay
+        logger.info("Adding relay handlers");
+        clientChannel.pipeline().addLast(new RelayHandler(backendChannel, "client->backend"));
+        backendChannel.pipeline().addLast(new RelayHandler(clientChannel, "backend->client"));
+        logger.info("Tunnel relay setup complete");
+    }
+    
+    private void establishDirectTunnel(ChannelHandlerContext ctx, BackendTarget target) {
+        logger.info("Establishing direct tunnel to {}:{}", target.getHost(), target.getPort());
+        
+        // Create backend connection
+        io.netty.bootstrap.Bootstrap bootstrap = new io.netty.bootstrap.Bootstrap();
+        bootstrap.group(ctx.channel().eventLoop())
+                .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
+                .handler(new io.netty.channel.ChannelInitializer<io.netty.channel.Channel>() {
+                    @Override
+                    protected void initChannel(io.netty.channel.Channel ch) throws Exception {
+                        // No handlers needed for raw TCP tunnel
+                    }
+                });
+        
+        logger.info("Connecting to backend: {}:{}", target.getHost(), target.getPort());
+        bootstrap.connect(target.getHost(), target.getPort()).addListener((io.netty.channel.ChannelFutureListener) connectFuture -> {
+            if (connectFuture.isSuccess()) {
+                io.netty.channel.Channel backendChannel = connectFuture.channel();
+                logger.info("Backend connected successfully, setting up direct relay");
+                
+                // Remove HTTP handlers from client channel
+                try {
+                    if (ctx.channel().pipeline().get("http-codec") != null) {
+                        ctx.channel().pipeline().remove("http-codec");
+                    }
+                    if (ctx.channel().pipeline().get("http-aggregator") != null) {
+                        ctx.channel().pipeline().remove("http-aggregator");
+                    }
+                    if (ctx.channel().pipeline().get("http1-handler") != null) {
+                        ctx.channel().pipeline().remove("http1-handler");
+                    }
+                    
+                    // Set up bidirectional relay
+                    ctx.channel().pipeline().addLast(new RelayHandler(backendChannel, "client->backend"));
+                    backendChannel.pipeline().addLast(new RelayHandler(ctx.channel(), "backend->client"));
+                    
+                    logger.info("Direct tunnel established successfully");
+                } catch (Exception e) {
+                    logger.error("Error setting up direct tunnel: {}", e.getMessage());
+                    backendChannel.close();
+                    ctx.close();
+                }
+            } else {
+                logger.error("Failed to connect to backend: {}", connectFuture.cause().getMessage());
+                ctx.close();
+            }
+        });
+    }
+    
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        logger.info("Client channel became inactive: {} - pipeline: {}", ctx.channel().id(), 
+                   ctx.channel().pipeline().names());
+        super.channelInactive(ctx);
+    }
+    
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        logger.error("Exception in Http1ServerHandler: {}", cause.getMessage());
+        super.exceptionCaught(ctx, cause);
+    }
+    
+    // Inner class for raw TCP relay
+    public static class RelayHandler extends ChannelInboundHandlerAdapter {
+        private final Channel relayChannel;
+        private final String direction;
+        private static final Logger logger = LoggerFactory.getLogger(RelayHandler.class);
+        
+        public RelayHandler(Channel relayChannel, String direction) { 
+            this.relayChannel = relayChannel;
+            this.direction = direction;
+        }
+        
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (relayChannel.isActive()) {
+                logger.info("Relaying {} data: {} bytes ({})", direction, 
+                           msg instanceof io.netty.buffer.ByteBuf ? ((io.netty.buffer.ByteBuf)msg).readableBytes() : "unknown",
+                           msg.getClass().getSimpleName());
+                relayChannel.writeAndFlush(msg);
+            } else {
+                logger.warn("Cannot relay {} data - relay channel inactive", direction);
+            }
+        }
+        
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+            logger.info("Channel inactive in {} direction", direction);
+            if (relayChannel.isActive()) {
+                relayChannel.close();
+            }
+        }
+        
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            logger.error("Exception in {} relay: {}", direction, cause.getMessage());
+            ctx.close();
         }
     }
 }

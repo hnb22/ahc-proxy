@@ -93,17 +93,14 @@ start_non_cluster_proxy() {
     proxy_pid=$!
     echo "Proxy server started with PID: $proxy_pid"
     
-    # Wait for server to start
     echo "Waiting for proxy server to initialize..."
     sleep 3
     
-    # Check if server is running and responding
     if ! kill -0 $proxy_pid 2>/dev/null; then
         echo -e "${RED}❌ Failed to start non-cluster proxy server${NC}"
         return 1
     fi
     
-    # Test if server is accepting connections
     timeout 5 bash -c 'until nc -z localhost 8000; do sleep 0.1; done' 2>/dev/null
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Non-cluster proxy server is running and accepting connections${NC}"
@@ -122,17 +119,14 @@ start_notifier_log_proxy() {
     proxy_pid=$!
     echo "Notifer log proxy server started with PID: $proxy_pid"
     
-    # Wait for server to start
     echo "Waiting for Notifier log proxy server to initialize..."
     sleep 3
     
-    # Check if server is running and responding
     if ! kill -0 $proxy_pid 2>/dev/null; then
         echo -e "${RED}❌ Failed to start Notifer log proxy server${NC}"
         return 1
     fi
     
-    # Test if server is accepting connections
     timeout 5 bash -c 'until nc -z localhost 8000; do sleep 0.1; done' 2>/dev/null
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Notifer log proxy server is running and accepting connections${NC}"
@@ -151,7 +145,6 @@ stop_proxy() {
         kill $proxy_pid
         sleep 2
         
-        # Force kill if still running
         if kill -0 $proxy_pid 2>/dev/null; then
             echo -e "${YELLOW}Force killing proxy server...${NC}"
             kill -9 $proxy_pid
@@ -259,17 +252,14 @@ echo "============================="
 
 # Start backend servers for cluster testing
 if start_backend_servers; then
-    # Test Notifier log proxy
     if start_notifier_log_proxy; then
         run_proxy_tests "cluster"
     else
         echo -e "${RED}❌ Failed to start cluster proxy server, skipping tests${NC}"
     fi
     
-    # Stop the cluster proxy
     stop_proxy
     
-    # Stop backend application servers
     stop_backend_servers
 else
     echo -e "${RED}❌ Failed to start backend application servers, skipping cluster tests${NC}"

@@ -12,13 +12,13 @@ public class BackendCallbackHttp1 implements BackendResponseCallback {
     private final ChannelHandlerContext clientCtx;
     private final ForwardRequest originalRequest;
     private final ResponseProcessor responseProcessor;
-    private final BackendTarget backendTarget; // Add backend target information
+    private final BackendTarget backendTarget; 
     
     public BackendCallbackHttp1(ChannelHandlerContext clientCtx, ForwardRequest originalRequest, ResponseProcessor responseProcessor) {
         this.clientCtx = clientCtx;
         this.originalRequest = originalRequest;
         this.responseProcessor = responseProcessor;
-        this.backendTarget = null; // For backward compatibility
+        this.backendTarget = null; 
     }
     
     public BackendCallbackHttp1(ChannelHandlerContext clientCtx, ForwardRequest originalRequest, ResponseProcessor responseProcessor, BackendTarget backendTarget) {
@@ -31,7 +31,6 @@ public class BackendCallbackHttp1 implements BackendResponseCallback {
     @Override
     public void onResponse(Object response) {
         try {
-            // Send notification about where the request was forwarded
             sendNotification(response);
             
             Object processedResponse = responseProcessor.processBackendResponse(clientCtx, response);
@@ -43,18 +42,13 @@ public class BackendCallbackHttp1 implements BackendResponseCallback {
         }
     }
     
-    /**
-     * Send notification about request forwarding destination
-     */
     private void sendNotification(Object response) {
         try {
             if (backendTarget != null) {
                 String source = clientCtx.channel().remoteAddress().toString();
                 
-                // Notify about successful forwarding
                 NotificationService.notifyRequestForwarded(originalRequest, backendTarget, source);
                 
-                // If we have response information, notify about that too
                 if (response instanceof io.netty.handler.codec.http.FullHttpResponse) {
                     io.netty.handler.codec.http.FullHttpResponse httpResponse = 
                         (io.netty.handler.codec.http.FullHttpResponse) response;
@@ -73,7 +67,6 @@ public class BackendCallbackHttp1 implements BackendResponseCallback {
     public void onError(Throwable cause) {
         System.err.println("BackendCallbackHttp1: Backend error: " + cause.getMessage());
         
-        // Send error notification
         if (backendTarget != null) {
             String source = clientCtx.channel().remoteAddress().toString();
             NotificationService.notifyForwardError(backendTarget, source, cause.getMessage());

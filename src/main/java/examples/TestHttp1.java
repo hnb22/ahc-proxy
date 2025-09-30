@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import com.example.proxy.config.ProxyConfig;
 import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
-import com.example.proxy.core.server.ServerInitializer.Notifier;
 import com.example.proxy.exceptions.ProxyException;
 
 public class TestHttp1 {
@@ -20,7 +19,7 @@ public class TestHttp1 {
         ProxyServer proxy = new ProxyServer(new ProxyConfig("HTTP/1.1"));
 
         try {
-            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT, Notifier.NO));
+            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT));
             proxy.start();
             
             logger.info("Proxy server is running. Press Ctrl+C to stop.");

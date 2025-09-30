@@ -68,7 +68,7 @@ public class Main implements Runnable {
         public void run() {
             ProxyServer proxy = new ProxyServer(new ProxyConfig(protocol));
             try {
-                proxy.initialize(new ServerInitializer(host, port, Notifier.NO));
+                proxy.initialize(new ServerInitializer(host, port));
                 proxy.start();
                 proxy.sync();
             } catch (Exception e) {

@@ -19,7 +19,7 @@ public class TestHttp2 {
         ProxyServer proxy = new ProxyServer(new ProxyConfig("HTTP/2"));
 
         try {
-            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT, Notifier.NO));
+            proxy.initialize(new ServerInitializer(LOCAL_HOST, LOCAL_PORT));
             proxy.start();
 
             logger.info("Proxy server is running. Press Ctrl+C to stop.");

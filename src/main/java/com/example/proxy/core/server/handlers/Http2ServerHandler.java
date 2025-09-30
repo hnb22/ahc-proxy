@@ -135,7 +135,7 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
         }
 
         ForwardHttp2 httpRequest = (ForwardHttp2) request;
-s
+
         throw new UnsupportedOperationException("Unimplemented method 'forwardToBackend'");
     }
 

@@ -3,6 +3,7 @@ package com.example.proxy.core.notifier;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,8 +18,10 @@ import com.example.proxy.core.server.handlers.ServerHandler;
 import com.example.proxy.utils.HttpUtil;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -172,13 +175,35 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
                 
                 //HTTPS Tunneling
                 if ("CONNECT".equals(httpRequest.getMethod())) {
-                    FullHttpResponse response = new DefaultFullHttpResponse(
-                        HttpVersion.HTTP_1_1,
-                        new HttpResponseStatus(200, "Connection Established")
-                    );
-                    ctx.writeAndFlush(response);
+                    BackendResponseCallback httpsCallback = new BackendResponseCallback() {
+                        @Override
+                        public void onResponse(Object response) {
+                            // Not used for CONNECT
+                        }
+                        
+                        @Override
+                        public void onError(Throwable cause) {
+                            handleError(ctx, cause, httpRequest);
+                        }
+                        
+                        @Override
+                        public void onConnected(Channel backendChannel, Queue<Object> buffer, Channel clientChannel) {
+                            FullHttpResponse response = new DefaultFullHttpResponse(
+                                HttpVersion.HTTP_1_1,
+                                new HttpResponseStatus(200, "Connection Established")
+                            );
+                            ctx.writeAndFlush(response).addListener(future -> {
+                                if (future.isSuccess()) {
+                                    setupTunnelRelay(backendChannel, buffer, clientChannel);
+                                } else {
+                                    backendChannel.close();
+                                    clientChannel.close();
+                                }
+                            });
+                        }
+                    };
                     
-                    backendClient.forwardRequestHTTPS(ctx, httpRequest, target, callback)
+                    backendClient.forwardRequestHTTPS(ctx, httpRequest, target, httpsCallback)
                         .whenComplete((success, throwable) -> {
                             if (throwable != null) {
                                 handleError(ctx, throwable, httpRequest);
@@ -479,6 +504,50 @@ public class NotifierHttp1ServerHandler extends SimpleChannelInboundHandler<Full
             logger.error("Error forwarding to backend: {}", e.getMessage());
             aggregator.addResponse(createErrorResponse(e.getMessage()), source);
             return false;
+        }
+    }
+    
+    private void setupTunnelRelay(Channel backendChannel, Queue<Object> buffer, Channel clientChannel) {
+        while (!buffer.isEmpty()) {
+            Object msg = buffer.poll();
+            if (msg != null) {
+                backendChannel.writeAndFlush(msg);
+            }
+        }
+        
+        if (clientChannel.pipeline().get("buffer-handler") != null) {
+            clientChannel.pipeline().remove("buffer-handler");
+        }
+        
+        clientChannel.pipeline().addLast(new RelayHandler(backendChannel));
+        backendChannel.pipeline().addLast(new RelayHandler(clientChannel));
+    }
+    
+    // Inner class for raw TCP relay
+    public static class RelayHandler extends ChannelInboundHandlerAdapter {
+        private final Channel relayChannel;
+        
+        public RelayHandler(Channel relayChannel) { 
+            this.relayChannel = relayChannel; 
+        }
+        
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (relayChannel.isActive()) {
+                relayChannel.writeAndFlush(msg);
+            }
+        }
+        
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+            if (relayChannel.isActive()) {
+                relayChannel.close();
+            }
+        }
+        
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            ctx.close();
         }
     }
 }
