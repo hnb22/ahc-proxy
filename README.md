@@ -129,12 +129,6 @@ curl -x localhost:8000 \
   "http://echo.free.beeceptor.com/sample-request"
 ```
 
-#### HTTPS Requests (Tunneling)
-```bash
-# HTTPS request via CONNECT tunneling
-curl -x localhost:8000 "https://echo.free.beeceptor.com/sample-request?author=beeceptor"
-```
-
 ### Cluster Log Limitations
 
 - **HTTPS requests**: Logging requests via backend is **not yet supported** for HTTPS requests.
