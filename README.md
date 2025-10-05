@@ -15,6 +15,11 @@ cd ahc-proxy
 mvn clean install
 ```
 
+### Run bash script, includes compiling and sample tests
+```bash
+./script.sh
+```
+
 ### Starting the Proxy Server
 
 #### Regular Proxy Mode
@@ -128,7 +133,3 @@ curl -x localhost:8000 \
   -H "Accept-Encoding: gzip" \
   "http://echo.free.beeceptor.com/sample-request"
 ```
-
-### Cluster Log Limitations
-
-- **HTTPS requests**: Logging requests via backend is **not yet supported** for HTTPS requests.

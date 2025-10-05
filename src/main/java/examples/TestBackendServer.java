@@ -9,6 +9,7 @@ import com.example.proxy.core.server.ApplicationServer;
  * Launcher for backend application servers.
  * These servers receive HTTP requests and log them locally.
  */
+
 public class TestBackendServer {
     
     private static final Logger logger = LoggerFactory.getLogger(TestBackendServer.class);
@@ -20,7 +21,6 @@ public class TestBackendServer {
     public static void main(String[] args) {
         ApplicationServer server = new ApplicationServer(LOCAL_HOST, LOCAL_PORT, SERVER_NAME);
         
-        // Add shutdown hook for graceful stop
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutting down backend server '{}'", SERVER_NAME);
             server.stop();
@@ -28,7 +28,7 @@ public class TestBackendServer {
         
         try {
             logger.info("Starting backend application server '{}' on {}:{}", SERVER_NAME, LOCAL_HOST, LOCAL_PORT);
-            server.start(); // This blocks until server is stopped
+            server.start();
             
         } catch (InterruptedException e) {
             logger.info("Backend server '{}' was interrupted", SERVER_NAME);
