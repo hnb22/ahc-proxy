@@ -1,6 +1,8 @@
 package com.example.proxy.core.backend;
 
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +36,7 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
  * Dedicated HTTP client for forwarding requests to backend servers.
  * Encapsulates all connection logic and provides callbacks for response handling.
  */
+
 public class HttpBackendClient {
     
     private static final Logger logger = LoggerFactory.getLogger(HttpBackendClient.class);
@@ -220,9 +223,22 @@ public class HttpBackendClient {
             BackendResponseCallback callback) {
 
         Channel clientChannel = ctx.channel();
+
+        // Remove HTTP handlers
+        if (clientChannel.pipeline().get("http-codec") != null) {
+            clientChannel.pipeline().remove("http-codec");
+        }
+        if (clientChannel.pipeline().get("http-aggregator") != null) {
+            clientChannel.pipeline().remove("http-aggregator");
+        }
+        if (clientChannel.pipeline().get("http1-handler") != null) {
+            clientChannel.pipeline().remove("http1-handler");
+        }
+
         CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
-        final java.util.Queue<Object> buffer = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        // Buffer client data until backend is ready
+        final Queue<Object> buffer = new ConcurrentLinkedQueue<>();
         ChannelInboundHandlerAdapter bufferHandler = new ChannelInboundHandlerAdapter() {
             @Override
             public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -239,13 +255,18 @@ public class HttpBackendClient {
             connectFuture.addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
                     Channel backendChannel = future.channel();
-                    logger.info("Backend connection successful to {}:{}", target.getHost(), target.getPort());
-                    logger.info("Calling onConnected callback with buffer size: {}", buffer.size());
-                    
-                    callback.onConnected(backendChannel, buffer, clientChannel);
+                    // Flush buffered client data to backend
+                    while (!buffer.isEmpty()) {
+                        Object msg = buffer.poll();
+                        if (msg != null) {
+                            backendChannel.writeAndFlush(msg);
+                        }
+                    }
+                    clientChannel.pipeline().remove("buffer-handler");
+                    clientChannel.pipeline().addLast(new RelayHandler(backendChannel));
+                    backendChannel.pipeline().addLast(new RelayHandler(clientChannel));
                     resultFuture.complete(true);
                 } else {
-                    logger.error("Backend connection failed to {}:{} - {}", target.getHost(), target.getPort(), future.cause().getMessage());
                     handleConnectionFailure(target, future.cause(), callback, resultFuture);
                 }
             });
@@ -255,6 +276,17 @@ public class HttpBackendClient {
             resultFuture.complete(false);
         }
         return resultFuture;
+    }
+
+    private Bootstrap createBootstrapHttps() {
+        Bootstrap client = new Bootstrap();
+        client.group(eventLoopGroup)
+            .channel(NioSocketChannel.class)
+            .handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                protected void initChannel(SocketChannel ch) throws Exception {}
+            });
+        return client;
     }
 
     public static class RelayHandler extends ChannelInboundHandlerAdapter {
@@ -277,19 +309,6 @@ public class HttpBackendClient {
         public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
             ctx.close();
         }
-    }
-
-    private Bootstrap createBootstrapHttps() {
-        Bootstrap client = new Bootstrap();
-        client.group(eventLoopGroup)
-            .channel(NioSocketChannel.class)
-            .handler(new ChannelInitializer<SocketChannel>() {
-                @Override
-                protected void initChannel(SocketChannel ch) throws Exception {
-                    ch.pipeline().addLast(new ChannelInboundHandlerAdapter());
-                }
-            });
-        return client;
     }
     
 }
