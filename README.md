@@ -1,6 +1,6 @@
 # AHC Proxy Server
 
-A HTTP/HTTPS forward proxy server built with Java and Netty, featuring a remote server logging capability.
+A HTTP/HTTPS forward proxy server built with Java and Netty, featuring remote server logging.
 
 ## Installation
 ### Run bash script
