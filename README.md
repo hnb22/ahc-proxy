@@ -1,21 +1,9 @@
 # AHC Proxy Server
 
-A HTTP/HTTPS forward proxy server built with Java and Netty, featuring a CLI tool and distributed logging capabilities.
+A HTTP/HTTPS forward proxy server built with Java and Netty, featuring a remote server logging capabilities.
 
 ## Installation
-
-1. **Clone the repository:**
-```bash
-git clone <repository-url>
-cd ahc-proxy
-```
-
-2. **Build the project:**
-```bash
-mvn clean install
-```
-
-### Run bash script, includes compiling and sample tests
+### Run bash script
 ```bash
 ./script.sh
 ```
@@ -106,30 +94,4 @@ public class TestHttp1Notifier {
         }
     }
 }
-```
-
-The cluster example routes requests to:
-- **Original destination** (from the request URL)
-- **localhost:8001** (logs request to destination 1)
-- **localhost:8002** (logs request to destination 2)
-- **localhost:8003** (logs request to destination 3)
-
-### Making Requests
-
-#### HTTP Requests
-```bash
-# Simple GET request
-curl -x localhost:8000 "http://echo.free.beeceptor.com/sample-request?author=beeceptor"
-
-# POST request with JSON body
-curl -x localhost:8000 \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"name": "John", "age": 30}' \
-  "http://echo.free.beeceptor.com/sample-request"
-
-# Request with compression
-curl -x localhost:8000 \
-  -H "Accept-Encoding: gzip" \
-  "http://echo.free.beeceptor.com/sample-request"
 ```
