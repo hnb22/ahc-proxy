@@ -5,11 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import com.example.proxy.core.server.ApplicationServer;
 
-/**
- * Launcher for backend application servers.
- * These servers receive HTTP requests and log them locally.
- */
-
 public class TestBackendServer {
     
     private static final Logger logger = LoggerFactory.getLogger(TestBackendServer.class);

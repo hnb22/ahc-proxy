@@ -21,7 +21,6 @@ public class ProxyServer {
     private static final Logger logger = LoggerFactory.getLogger(ProxyServer.class);
     
     private final ProxyConfig proxyConfig;
-    //TODO: should this be immutable?
     private ServerInitializer serverInitializer;
 
     public enum State {

@@ -162,13 +162,11 @@ public class ApplicationServer {
                 String uri = request.uri();
                 String version = request.protocolVersion().text();
                 
-                // Get headers
                 StringBuilder headers = new StringBuilder();
                 for (String name : request.headers().names()) {
                     headers.append("\n    ").append(name).append(": ").append(request.headers().get(name));
                 }
                 
-                // Get body content
                 String body = "";
                 if (request.content().readableBytes() > 0) {
                     ByteBuf content = request.content();

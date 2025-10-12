@@ -2,6 +2,8 @@ package com.example.proxy.core.server;
 
 import java.util.Map;
 
+import com.example.proxy.utils.HttpUtil;
+
 import io.netty.buffer.ByteBuf;
 
 public class ForwardHttp2 extends ForwardRequest {
@@ -24,8 +26,7 @@ public class ForwardHttp2 extends ForwardRequest {
         this.dataId = dataId;
         this.headers = headers;
         
-        // Construct full URI from HTTP/2 pseudo-headers
-        this.uri = constructURI(authority, path);
+        this.uri = HttpUtil.constructURI(authority, path);
     }
 
     public String getMethod() {
@@ -58,24 +59,6 @@ public class ForwardHttp2 extends ForwardRequest {
 
     public boolean isBody() {
         return body;
-    }
-    
-    /**
-     * Constructs a full URI from HTTP/2 :authority and :path pseudo-headers
-     */
-    private String constructURI(String authority, String path) {
-        if (authority == null) {
-            return path != null ? path : "/";
-        }
-        
-        // Check if authority already includes scheme
-        if (authority.startsWith("http://") || authority.startsWith("https://")) {
-            return authority + (path != null ? path : "/");
-        }
-        
-        // Default to HTTP scheme for proxy usage
-        String scheme = "http://";
-        return scheme + authority + (path != null ? path : "/");
     }
     
 }

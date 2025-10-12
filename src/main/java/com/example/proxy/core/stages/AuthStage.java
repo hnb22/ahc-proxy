@@ -1,7 +1,7 @@
 package com.example.proxy.core.stages;
 
 /* 
- *  Overview: Pipeline stage for authentication with HTTP/1.x, HTTP/2. and WebSocket
+ *  Overview: Data container for Authorization type in HTTP requests
  */
 
 public class AuthStage implements StagesManager {

@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import com.example.proxy.config.ProxyConfig;
 import com.example.proxy.core.server.ProxyServer;
 import com.example.proxy.core.server.ServerInitializer;
-import com.example.proxy.core.server.ServerInitializer.Notifier;
 import com.example.proxy.exceptions.ProxyException;
 
 public class TestHttp2 {

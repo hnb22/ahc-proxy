@@ -37,7 +37,6 @@ public class NotifierResponseAggregator {
     private volatile boolean responsesSent = false;
     private ScheduledFuture<?> timeoutTask;
     
-    // Static map to track aggregators by request ID
     private static final Map<String, NotifierResponseAggregator> activeAggregators = new ConcurrentHashMap<>();
     
     public NotifierResponseAggregator(ChannelHandlerContext ctx, ForwardRequest request, int expectedCount) {
@@ -60,10 +59,6 @@ public class NotifierResponseAggregator {
         return ctx.channel().id().asShortText() + "-" + System.currentTimeMillis();
     }
     
-    /**
-     * Add a response from one of the backend destinations.
-     * When all expected responses are received, sends the aggregated response to client.
-     */
     public synchronized void addResponse(Object response, String source) {
         if (responsesSent) {
             logger.debug("Response already sent for request {}, ignoring response from {}", requestId, source);
@@ -80,17 +75,11 @@ public class NotifierResponseAggregator {
             sendAggregatedResponse();
         }
     }
-    
-    /**
-     * Get an existing aggregator for a request, or null if not found
-     */
+
     public static NotifierResponseAggregator getAggregator(String requestId) {
         return activeAggregators.get(requestId);
     }
-    
-    /**
-     * Creates and sends a JSON response containing all backend responses
-     */
+
     private void sendAggregatedResponse() {
         if (responsesSent) {
             logger.debug("Response already sent for request {}", requestId);
@@ -98,12 +87,10 @@ public class NotifierResponseAggregator {
         }
         responsesSent = true;
         
-        // Cancel timeout task
         if (timeoutTask != null && !timeoutTask.isDone()) {
             timeoutTask.cancel(false);
         }
-        
-        // Clean up
+
         activeAggregators.remove(requestId);
         
         try {
@@ -136,7 +123,6 @@ public class NotifierResponseAggregator {
                     }
                     json.append("\n      },\n");
                     
-                    // Use pre-captured body content
                     String body = escapeJson(responseData.bodyContent);
                     json.append("      \"body\": \"").append(body).append("\"\n");
                 } else {

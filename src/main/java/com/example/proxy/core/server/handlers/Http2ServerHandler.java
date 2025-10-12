@@ -24,7 +24,6 @@ import io.netty.handler.codec.http2.Http2StreamFrame;
 /* 
  *  Overview: Handles HTTP/2 frames, stream multiplexing, and flow control
  */
-
 public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamFrame> implements ServerHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(Http2ServerHandler.class);
@@ -42,12 +41,10 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
             int streamId = streamFrame.stream().id();
             
             if (!request.isBody()) {
-                // Complete request (GET/HEAD) - return immediately
                 return request;
             } else {
-                // Request with body - store for later completion
                 pendingRequests.put(streamId, request);
-                return null; // Wait for DATA frames
+                return null;
             }
         } else if (streamFrame instanceof Http2DataFrame) {
             return handleDataFrame(ctx, (Http2DataFrame) streamFrame);
@@ -71,38 +68,20 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
         String path = http2Request.getPath();
 
         try {
-            String host;
-            int port;
             String targetPath = path != null ? path : "/";
 
-            // Extract host and port from authority or URI
-            if (authority != null) {
-                // Parse authority (host:port format)
-                if (authority.contains(":")) {
-                    String[] parts = authority.split(":");
-                    host = parts[0];
-                    port = Integer.parseInt(parts[1]);
-                } else {
-                    host = authority;
-                    port = 80; // Default HTTP port
-                }
-            } else {
-                // Fallback to extracting from URI
-                host = HttpUtil.getHostFromURI(uri);
-                port = HttpUtil.getPortFromURI(uri);
-                targetPath = HttpUtil.getPathFromURI(uri);
-            }
+            String host = HttpUtil.getHostFromAuthorityOrUri(authority, uri, targetPath);
+            int port = HttpUtil.getPortFromAuthorityOrUri(authority, uri, targetPath);
+            targetPath = HttpUtil.getPathFromUri(authority, uri);
 
             if (host == null) {
                 logger.error("Unable to determine target host from HTTP/2 request");
                 return null;
             }
 
-            // Create metadata for backend configuration
             Map<String, String> metadata = new HashMap<>();
-            metadata.put("protocol", "http2");
+            metadata.put("protocol", "HTTP/2");
             
-            // Add authentication metadata if present
             if (request.hasAuth()) {
                 AuthStage authStage = request.getAuthStage();
                 if (authStage != null) {
@@ -110,7 +89,6 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
                 }
             }
             
-            // Add compression metadata if present
             if (request.hasCompression()) {
                 CompressionStage compStage = request.getCompressionStage();
                 if (compStage != null) {
@@ -173,7 +151,6 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
         try {
             ForwardRequest request = parseIncomingMessage(ctx, msg);
             if (request != null) {
-                // Complete request received - process it
                 BackendTarget target = routeToBackend(request);
                 if (target != null) {
                     boolean success = forwardToBackend(ctx, request, target);
@@ -184,7 +161,6 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
                     handleError(ctx, new Exception("Failed to create backend target"), request);
                 }
             }
-            // If request is null, we're waiting for more frames (normal for DATA frames)
         } catch (Exception e) {
             logger.error("Error processing HTTP/2 frame: {}", e.getMessage(), e);
         }

@@ -57,4 +57,58 @@ public final class HttpUtil {
             return 80;
         }
     }
+
+    public static String constructURI(String authority, String path) {
+        if (authority == null) {
+            return path != null ? path : "/";
+        }
+        
+        if (authority.startsWith("http://") || authority.startsWith("https://")) {
+            return authority + (path != null ? path : "/");
+        }
+        
+        String scheme = "http://";
+        return scheme + authority + (path != null ? path : "/");
+    }
+
+    public static String getHostFromAuthorityOrUri(String authority, String uri, String targetPath) {
+        String host;
+        
+        if (authority != null) {
+            if (authority.contains(":")) {
+                String[] parts = authority.split(":");
+                host = parts[0];
+            } else {
+                host = authority;
+            }
+        } else {
+            host = HttpUtil.getHostFromURI(uri);
+        }
+
+        return host;
+    }
+
+    
+    public static int getPortFromAuthorityOrUri(String authority, String uri, String targetPath) {
+        int port;
+        
+        if (authority != null) {
+            if (authority.contains(":")) {
+                String[] parts = authority.split(":");
+                port = Integer.parseInt(parts[1]);
+            } else {
+                port = 80; 
+            }
+        } else {
+            port = HttpUtil.getPortFromURI(uri);
+        }
+
+        return port;
+    }
+
+    public static String getPathFromUri(String uri, String targetPath) {
+        targetPath = HttpUtil.getPathFromURI(uri);
+
+        return targetPath;
+    }
 }

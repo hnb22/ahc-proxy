@@ -22,7 +22,6 @@ import io.netty.handler.codec.http2.Http2MultiplexHandler;
 
 public class ServerInitializer extends ChannelInitializer<SocketChannel> {
     
-    //TODO: make config immutable
     private ProxyConfig config;
     private List<String> destinations;
     private Notifier isNotifier;
@@ -62,13 +61,13 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
         if (isNotifier == isNotifier.YES) {
             switch (protocol.toUpperCase()) {
                 case "HTTP/1.1":
-                    configureHttp1PipelineCluster(pipeline);
+                    configureHttp1PipelineNotifier(pipeline);
                     break;
                 case "HTTP/2":
-                    configureHttp2PipelineCluster(pipeline);
+                    configureHttp2PipelineNotifier(pipeline);
                     break;
                 case "WEBSOCKET":
-                    configureWebSocketPipelineCluster(pipeline);
+                    configureWebSocketPipelineNotifier(pipeline);
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported protocol: " + protocol);
@@ -90,20 +89,20 @@ public class ServerInitializer extends ChannelInitializer<SocketChannel> {
         }
     }
 
-    private void configureWebSocketPipelineCluster(ChannelPipeline pipeline) {
+    private void configureWebSocketPipelineNotifier(ChannelPipeline pipeline) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("Unimplemented method 'configureWebSocketPipelineCluster'");
 	}
 
-	private void configureHttp2PipelineCluster(ChannelPipeline pipeline) {
+	private void configureHttp2PipelineNotifier(ChannelPipeline pipeline) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("Unimplemented method 'configureHttp2PipelineCluster'");
 	}
 
-	private void configureHttp1PipelineCluster(ChannelPipeline pipeline) {
+	private void configureHttp1PipelineNotifier(ChannelPipeline pipeline) {
         pipeline.addLast("http-codec", new HttpServerCodec());
         pipeline.addLast("http-aggregator", new HttpObjectAggregator(65536));
-        pipeline.addLast("http1-handler-cluster", new NotifierHttp1ServerHandler(this.destinations)); 
+        pipeline.addLast("http1-handler-notifier", new NotifierHttp1ServerHandler(this.destinations)); 
     }
 
 	private void configureWebSocketPipeline(ChannelPipeline pipeline) {

@@ -10,14 +10,7 @@ import com.example.proxy.core.stages.StagesManager;
 import io.netty.buffer.ByteBuf;
 
 /**
- * Builder pattern for creating forward requests with optional pipeline stages.
- * Provides a fluent, readable API for configuring which stages to apply.
- * 
- * IMPROVED OOP Design:
- * - Composition: Uses List<StagesManager> for multiple stages
- * - Builder Pattern: Fluent method chaining
- * - Encapsulation: Private fields with controlled access
- * - Polymorphism: Different stage implementations through common interface
+ * Builder pattern for creating forward requests with optional auth, compression stages.
  */
 public class ForwardRequest {
     private final ByteBuf data;
@@ -46,7 +39,7 @@ public class ForwardRequest {
 
     public ByteBuf getData() { return data; }
     public String getType() { return type; }
-    public List<StagesManager> getStages() { return new ArrayList<>(stages); }  // Defensive copy
+    public List<StagesManager> getStages() { return new ArrayList<>(stages); } 
 
     public boolean hasStages() { return !stages.isEmpty(); }
     
