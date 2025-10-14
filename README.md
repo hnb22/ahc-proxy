@@ -2,14 +2,6 @@
 
 A HTTP/HTTPS forward proxy server built with Java and Netty, featuring remote server logging.
 
-## Installation
-### Run bash script
-```bash
-./script.sh
-```
-
-### Starting the Proxy Server
-
 #### Regular Proxy Mode
 ```java
 package examples;
