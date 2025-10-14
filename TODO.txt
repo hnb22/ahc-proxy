@@ -1,0 +1,5 @@
+Features to add:
+- Bandwidth manager for HTTP/2 data frame requests.
+- User authentication and session management.
+- Integrate content filtering through proxy set up
+- Use stream priorities in HTTP/2 (QoS)
