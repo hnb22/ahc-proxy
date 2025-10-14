@@ -12,6 +12,7 @@ import com.example.proxy.core.backend.HttpBackendClient;
 import com.example.proxy.core.backend.custom.BackendCallbackHttp1;
 import com.example.proxy.core.server.ForwardHttp1;
 import com.example.proxy.core.server.ForwardRequest;
+import com.example.proxy.core.stages.ContentFilterStage;
 import com.example.proxy.utils.HttpUtil;
 
 import io.netty.buffer.ByteBuf;
@@ -93,6 +94,15 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
         try {
             if (!(request instanceof ForwardHttp1)) {
                 logger.error("Invalid request type for HTTP/1.1 handler");
+                return null;
+            }
+
+            ContentFilterStage filter = new ContentFilterStage();
+            ContentFilterStage.FilterDecision decision = filter.evaluateRequest(request);
+            
+            if (decision.isBlocked()) {
+                logger.warn("Request blocked by content filter: {}", decision.getReason());
+                // Return null to indicate the request should be blocked
                 return null;
             }
             
@@ -278,6 +288,15 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
         try {
             ForwardRequest request = parseIncomingMessage(ctx, msg);
             if (request != null) {
+                
+                ContentFilterStage filter = new ContentFilterStage();
+                ContentFilterStage.FilterDecision decision = filter.evaluateRequest(request);
+                
+                if (decision.isBlocked()) {
+                    sendBlockedResponse(ctx, decision.getReason());
+                    return;
+                }
+                
                 BackendTarget target = routeToBackend(request);
                 if (target != null) {
                     boolean success = forwardToBackend(ctx, request, target);
@@ -295,6 +314,62 @@ public class Http1ServerHandler extends SimpleChannelInboundHandler<FullHttpRequ
         }
     }
         
+    /**
+     * Send a blocked response to the client when content filter blocks the request
+     */
+    private void sendBlockedResponse(ChannelHandlerContext ctx, String reason) {
+        if (!ctx.channel().isActive()) return;
+        
+        try {
+            String blockedHtml = createBlockedPageHtml(reason);
+            
+            DefaultFullHttpResponse blockedResponse = new DefaultFullHttpResponse(
+                HttpVersion.HTTP_1_1, 
+                HttpResponseStatus.FORBIDDEN,
+                ctx.alloc().buffer().writeBytes(blockedHtml.getBytes("UTF-8"))
+            );
+            
+            blockedResponse.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/html; charset=UTF-8");
+            blockedResponse.headers().set(HttpHeaderNames.CONTENT_LENGTH, blockedHtml.getBytes("UTF-8").length);
+            blockedResponse.headers().set("X-Proxy-Server", "ahc-proxy");
+            blockedResponse.headers().set("X-Content-Filter", "blocked");
+            
+            ctx.writeAndFlush(blockedResponse).addListener(ChannelFutureListener.CLOSE);
+            
+            logger.info("Sent content filter blocked response: {}", reason);
+            
+        } catch (Exception e) {
+            logger.error("Error sending blocked response: {}", e.getMessage());
+            ctx.close();
+        }
+    }
+    
+
+    private String createBlockedPageHtml(String reason) {
+        return "<!DOCTYPE html>\n" +
+               "<html><head><title>Access Blocked</title>\n" +
+               "<style>body{font-family:Arial,sans-serif;margin:40px;text-align:center;}\n" +
+               ".blocked{color:#d32f2f;font-size:24px;margin:20px 0;}\n" +
+               ".reason{color:#666;font-size:16px;margin:20px 0;}\n" +
+               ".footer{color:#999;font-size:12px;margin-top:40px;}</style></head>\n" +
+               "<body>\n" +
+               "<h1 class=\"blocked\">🚫 Access Blocked</h1>\n" +
+               "<p class=\"reason\">" + escapeHtml(reason) + "</p>\n" +
+               "<p>This request was blocked by the proxy server's content filter.</p>\n" +
+               "<p>If you believe this is an error, please contact your system administrator.</p>\n" +
+               "<div class=\"footer\">AHC Proxy Server</div>\n" +
+               "</body></html>";
+    }
+    
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;")
+                  .replace("<", "&lt;")
+                  .replace(">", "&gt;")
+                  .replace("\"", "&quot;")
+                  .replace("'", "&#x27;");
+    }
+    
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         logger.info("Client channel became inactive: {} - pipeline: {}", ctx.channel().id(), 

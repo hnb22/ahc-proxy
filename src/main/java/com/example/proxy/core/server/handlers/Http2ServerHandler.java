@@ -11,6 +11,7 @@ import com.example.proxy.core.server.ForwardHttp2;
 import com.example.proxy.core.server.ForwardRequest;
 import com.example.proxy.core.stages.AuthStage;
 import com.example.proxy.core.stages.CompressionStage;
+import com.example.proxy.core.stages.ContentFilterStage;
 import com.example.proxy.utils.HttpUtil;
 
 import io.netty.buffer.ByteBuf;
@@ -19,6 +20,8 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http2.Http2DataFrame;
 import io.netty.handler.codec.http2.Http2Headers;
 import io.netty.handler.codec.http2.Http2HeadersFrame;
+import io.netty.handler.codec.http2.Http2PriorityFrame;
+import io.netty.handler.codec.http2.Http2ResetFrame;
 import io.netty.handler.codec.http2.Http2StreamFrame;
 
 /* 
@@ -28,6 +31,7 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
 
     private static final Logger logger = LoggerFactory.getLogger(Http2ServerHandler.class);
     private final Map<Integer, ForwardHttp2> pendingRequests = new HashMap<>();
+    private final Map<Integer, StreamPriority> streamPriorities = new HashMap<>();
 
     @Override
     public ForwardRequest parseIncomingMessage(ChannelHandlerContext ctx, Object message) {
@@ -48,6 +52,10 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
             }
         } else if (streamFrame instanceof Http2DataFrame) {
             return handleDataFrame(ctx, (Http2DataFrame) streamFrame);
+        } else if (streamFrame instanceof Http2PriorityFrame) {
+            return handlePriorityFrame(ctx, (Http2PriorityFrame) streamFrame);
+        } else if (streamFrame instanceof Http2ResetFrame) {
+            return handleRSTStreamFrame(ctx, (Http2ResetFrame) streamFrame);
         } else {
             logger.debug("Received other HTTP/2 frame type: {} for stream {}", 
                 streamFrame.getClass().getSimpleName(), streamFrame.stream().id());
@@ -59,6 +67,14 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
     public BackendTarget routeToBackend(ForwardRequest request) {
         if (!(request instanceof ForwardHttp2)) {
             logger.error("Invalid request type for HTTP/2 handler");
+            return null;
+        }
+
+        ContentFilterStage filter = new ContentFilterStage();
+        ContentFilterStage.FilterDecision decision = filter.evaluateRequest(request);
+        
+        if (decision.isBlocked()) {
+            logger.warn("HTTP/2 request blocked by content filter: {}", decision.getReason());
             return null;
         }
 
@@ -172,24 +188,19 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
         
         logger.debug("Received HEADERS frame for stream {}", streamId);
         
-        // Extract HTTP/2 pseudo-headers  
         String method = headers.method() != null ? headers.method().toString() : "GET";
         String path = headers.path() != null ? headers.path().toString() : "/";
         String authority = headers.authority() != null ? headers.authority().toString() : null;
         
-        // Convert headers to map
         Map<String, String> headerMap = new HashMap<>();
         for (Map.Entry<CharSequence, CharSequence> entry : headers) {
             headerMap.put(entry.getKey().toString(), entry.getValue().toString());
         }
         
-        // For requests without body (GET, etc.) or with END_STREAM flag
         if ("GET".equals(method) || "HEAD".equals(method) || headersFrame.isEndStream()) {
-            // Complete request - process immediately
             ByteBuf emptyData = ctx.alloc().buffer(0);
             ForwardHttp2 request = new ForwardHttp2(emptyData, method, path, authority, headerMap, streamId, 0, false);
             
-            // Apply compression settings
             String acceptEncoding = headerMap.get("accept-encoding");
             if (acceptEncoding != null) {
                 if (acceptEncoding.contains("gzip")) {
@@ -201,7 +212,6 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
                 }
             }
             
-            // Apply authentication settings
             String authorization = headerMap.get("authorization");
             if (authorization != null) {
                 if (authorization.startsWith("Bearer ")) {
@@ -219,7 +229,6 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
             ByteBuf emptyData = ctx.alloc().buffer(0);
             ForwardHttp2 request = new ForwardHttp2(emptyData, method, path, authority, headerMap, streamId, 0, true);   
             
-            // Apply compression settings
             String acceptEncoding = headerMap.get("accept-encoding");
             if (acceptEncoding != null) {
                 if (acceptEncoding.contains("gzip")) {
@@ -231,7 +240,6 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
                 }
             }
             
-            // Apply authentication settings
             String authorization = headerMap.get("authorization");
             if (authorization != null) {
                 if (authorization.startsWith("Bearer ")) {
@@ -254,21 +262,18 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
         logger.debug("Received DATA frame for stream {}, {} bytes, endStream: {}", 
             streamId, content.readableBytes(), dataFrame.isEndStream());
         
-        // Get the pending request for this stream
         ForwardHttp2 pendingRequest = pendingRequests.get(streamId);
         if (pendingRequest == null) {
             logger.warn("Received DATA frame for unknown stream {}", streamId);
             return null;
         }
         
-        // Append data to the existing request
         if (content.isReadable()) {
             ByteBuf currentData = pendingRequest.getData();
             ByteBuf newData = ctx.alloc().buffer(currentData.readableBytes() + content.readableBytes());
             newData.writeBytes(currentData);
             newData.writeBytes(content);
             
-            // Create new request with combined data
             pendingRequest = new ForwardHttp2(newData, 
                 pendingRequest.getMethod(), 
                 pendingRequest.getPath(), 
@@ -278,22 +283,68 @@ public class Http2ServerHandler extends SimpleChannelInboundHandler<Http2StreamF
                 pendingRequest.getDataId(), 
                 true);
             
-            // Update stored request
             pendingRequests.put(streamId, pendingRequest);
             
-            // Release old buffer
             currentData.release();
         }
         
         if (dataFrame.isEndStream()) {
             logger.debug("End of stream for {}", streamId);
-            // Remove from pending and return completed request
             ForwardHttp2 completedRequest = pendingRequests.remove(streamId);
             return completedRequest;
         }
         
-        // More data frames expected
         return null;
     }
     
+    private ForwardHttp2 handlePriorityFrame(ChannelHandlerContext ctx, Http2PriorityFrame priorityFrame) {
+        int streamId = priorityFrame.stream().id();
+        boolean exclusive = priorityFrame.exclusive();
+        int dependency = priorityFrame.streamDependency();
+        short weight = priorityFrame.weight();
+        
+        logger.debug("Received PRIORITY frame for stream {}: exclusive={}, dependency={}, weight={}", 
+            streamId, exclusive, dependency, weight);
+
+        if (exclusive && dependency != 0) {
+            redistributeExclusiveDependency(streamId, dependency);
+        }
+        
+        StreamPriority priority = new StreamPriority(streamId, dependency, weight, exclusive);
+        streamPriorities.put(streamId, priority);
+        
+        return null;
+    }
+    
+    private void redistributeExclusiveDependency(int newStreamId, int parentStreamId) {
+        streamPriorities.entrySet().stream()
+            .filter(entry -> entry.getValue().getDependency() == parentStreamId && entry.getKey() != newStreamId)
+            .forEach(entry -> {
+                int childStreamId = entry.getKey();
+                StreamPriority oldPriority = entry.getValue();
+                
+                StreamPriority newPriority = new StreamPriority(
+                    childStreamId, 
+                    newStreamId, 
+                    oldPriority.getWeight(), 
+                    oldPriority.isExclusive()
+                );
+                streamPriorities.put(childStreamId, newPriority);
+                
+                logger.debug("Redistributed stream {} from parent {} to parent {} due to exclusive dependency", 
+                    childStreamId, parentStreamId, newStreamId);
+            });
+    }
+
+    private ForwardHttp2 handleRSTStreamFrame(ChannelHandlerContext ctx, Http2ResetFrame rstFrame) {
+        int streamId = rstFrame.stream().id();
+        long errorCode = rstFrame.errorCode();
+        
+        logger.debug("Received RST_STREAM for stream {}, error code: {}", streamId, errorCode);
+        
+        pendingRequests.remove(streamId);
+        streamPriorities.remove(streamId);
+        
+        return null;
+    }
 }

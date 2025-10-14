@@ -11,7 +11,6 @@ public class CompressionStage implements StagesManager {
         this.type = type;
     }
 
-    @Override
     public String getAlg() {
         return type;
     }

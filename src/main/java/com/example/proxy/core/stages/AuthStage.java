@@ -12,8 +12,8 @@ public class AuthStage implements StagesManager {
         this.type = type;
     }
 
-    @Override
-    public String getAlg() {
+	@Override
+	public String getAlg() {
         return type;
     }
 }
